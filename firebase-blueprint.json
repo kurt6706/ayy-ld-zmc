@@ -1,0 +1,117 @@
+{
+  "entities": {
+    "user": {
+      "title": "User",
+      "description": "Registered app users",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "surname": { "type": "string" },
+        "username": { "type": "string" },
+        "password": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "member"] },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "avatarUrl": { "type": "string" },
+        "statusText": { "type": "string" },
+        "profile": { "type": "object" },
+        "privacy": { "type": "object" }
+      },
+      "required": ["id", "name", "surname", "username", "role"]
+    },
+    "event": {
+      "title": "Event",
+      "description": "Club rides and events",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "image": { "type": "string" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "location": { "type": "string" },
+        "coordinates": { "type": "string" },
+        "status": { "type": "string", "enum": ["upcoming", "ongoing", "past"] },
+        "attendeesCount": { "type": "number" },
+        "description": { "type": "string" },
+        "routeLink": { "type": "string" },
+        "gmapsLink": { "type": "string" }
+      },
+      "required": ["id", "title", "date", "time", "location", "status"]
+    },
+    "blogPost": {
+      "title": "BlogPost",
+      "description": "Announcements, news, and blog articles",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "summary": { "type": "string" },
+        "content": { "type": "string" },
+        "image": { "type": "string" },
+        "category": { "type": "string", "enum": ["Duyuru", "Sürüş Günlüğü", "Teknik Bilgi", "Sosyal Sorumluluk"] },
+        "date": { "type": "string" },
+        "author": { "type": "string" },
+        "tags": { "type": "array" },
+        "likes": { "type": "number" },
+        "comments": { "type": "array" }
+      },
+      "required": ["id", "title", "content", "category", "date", "author"]
+    },
+    "route": {
+      "title": "Route",
+      "description": "Shared motorcycle riding routes",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "startPoint": { "type": "string" },
+        "endPoint": { "type": "string" },
+        "distanceKm": { "type": "number" },
+        "estimatedHours": { "type": "number" },
+        "roadCondition": { "type": "string" },
+        "fuelRate": { "type": "number" },
+        "stops": { "type": "array" },
+        "gpsUrl": { "type": "string" },
+        "difficulty": { "type": "string", "enum": ["Kolay", "Orta", "Zor"] },
+        "elevation": { "type": "string" }
+      },
+      "required": ["id", "name", "startPoint", "endPoint"]
+    },
+    "chatMessage": {
+      "title": "ChatMessage",
+      "description": "Live chat messages",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "sender": { "type": "string" },
+        "text": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "isSystem": { "type": "boolean" }
+      },
+      "required": ["id", "sender", "text", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "user",
+      "description": "Registered app users"
+    },
+    "/events/{eventId}": {
+      "schema": "event",
+      "description": "Club rides and events"
+    },
+    "/blogPosts/{blogPostId}": {
+      "schema": "blogPost",
+      "description": "Announcements, news, and posts"
+    },
+    "/routes/{routeId}": {
+      "schema": "route",
+      "description": "Shared motorcycle routes"
+    },
+    "/chatMessages/{messageId}": {
+      "schema": "chatMessage",
+      "description": "Live chat system messages"
+    }
+  }
+}

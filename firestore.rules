@@ -1,0 +1,162 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Global Safety Net (default-deny catch-all)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Global helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // --- COLLECTION RULES ---
+
+    // 1. Users
+    function isValidUser(data) {
+      return data.id is string &&
+             data.name is string && data.name.size() <= 100 &&
+             data.surname is string && data.surname.size() <= 100 &&
+             data.username is string && data.username.size() <= 50;
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isOwner(userId) && isValidUser(incoming()) && incoming().role == 'member' && incoming().status == 'pending';
+      allow update: if isSignedIn() && (
+        isAdmin() ||
+        (isOwner(userId) && isValidUser(incoming()) && 
+         incoming().role == existing().role && 
+         incoming().status == existing().status)
+      );
+      allow delete: if isAdmin();
+    }
+
+    // 2. Events
+    function isValidEvent(data) {
+      return data.id is string &&
+             data.title is string && data.title.size() <= 200;
+    }
+
+    match /events/{eventId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidEvent(incoming());
+      allow update: if isAdmin() || (
+        isSignedIn() && isValidEvent(incoming()) &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['attendeesCount'])
+      );
+      allow delete: if isAdmin();
+    }
+
+    // 3. Routes
+    function isValidRoute(data) {
+      return data.id is string &&
+             data.name is string && data.name.size() <= 200;
+    }
+
+    match /routes/{routeId} {
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidRoute(incoming());
+      allow delete: if isAdmin();
+    }
+
+    // 4. Blog Posts
+    function isValidBlogPost(data) {
+      return data.id is string &&
+             data.title is string && data.title.size() <= 200;
+    }
+
+    match /blogPosts/{blogPostId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidBlogPost(incoming());
+      allow update: if isAdmin() || (
+        isSignedIn() && isValidBlogPost(incoming()) &&
+        incoming().diff(existing()).affectedKeys().hasAny(['likes', 'comments']) &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['likes', 'comments'])
+      );
+      allow delete: if isAdmin();
+    }
+
+    // 5. User Posts
+    function isValidUserPost(data) {
+      return data.id is string &&
+             data.userId == request.auth.uid &&
+             data.content is string && data.content.size() <= 2000;
+    }
+
+    match /userPosts/{postId} {
+      allow read: if true;
+      allow create: if isSignedIn() && isValidUserPost(incoming());
+      allow update: if isSignedIn() && (isAdmin() || (existing().userId == request.auth.uid && isValidUserPost(incoming())));
+      allow delete: if isSignedIn() && (isAdmin() || existing().userId == request.auth.uid);
+    }
+
+    // 6. Direct Messages
+    match /directMessages/{messageId} {
+      allow read, delete: if isSignedIn() && (resource.data.senderId == request.auth.uid || resource.data.receiverId == request.auth.uid);
+      allow create: if isSignedIn() && (incoming().senderId == request.auth.uid || incoming().receiverId == request.auth.uid);
+      allow update: if isSignedIn() && (existing().senderId == request.auth.uid || existing().receiverId == request.auth.uid);
+    }
+
+    // 7. Announcements
+    match /announcements/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // 8. Messages (Live Chat messages)
+    function isValidMessage(data) {
+      return data.senderUid == request.auth.uid &&
+             data.text is string && data.text.size() <= 1000;
+    }
+
+    match /messages/{messageId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidMessage(incoming());
+      allow update: if isSignedIn() && (existing().senderUid == request.auth.uid && isValidMessage(incoming()));
+      allow delete: if isSignedIn() && (isAdmin() || existing().senderUid == request.auth.uid);
+    }
+
+    // 9. Typing State
+    match /typingState/{uid} {
+      allow read: if isSignedIn();
+      allow write, delete: if isSignedIn() && uid == request.auth.uid;
+    }
+
+    // 10. Active Users / Presence
+    match /activeUsers/{uid} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && uid == request.auth.uid;
+    }
+
+    // 11. Connection test
+    match /test/{docId} {
+      allow read, write: if true;
+    }
+  }
+}

@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { MessageSquare } from 'lucide-react';
+import { MessageSquare, RadioTower, X } from 'lucide-react';
 
 // Import all sub-components
 import Navbar from './components/Navbar';
@@ -20,6 +20,7 @@ import AdminPanel from './components/AdminPanel';
 import Footer from './components/Footer';
 import Login from './components/Login';
 import Chat from './components/Chat';
+import VoiceRoom from './components/VoiceRoom';
 
 // Firebase operations
 import { 
@@ -58,6 +59,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [showCookieConsent, setShowCookieConsent] = useState<boolean>(false);
   const [isChatOpen, setIsChatOpen] = useState<boolean>(false);
+  const [isVoiceOpen, setIsVoiceOpen] = useState<boolean>(false);
 
   // Synchronize darkMode with DOM
   useEffect(() => {
@@ -269,6 +271,7 @@ export default function App() {
           />
         )}
 
+
       </main>
 
       {/* Footer */}
@@ -283,13 +286,30 @@ export default function App() {
             setIsChatOpen(true);
           }}
           title="Canlı Grup Sohbeti"
-          className="fixed bottom-6 right-6 z-50 flex items-center justify-center w-14 h-14 bg-brand hover:bg-brand/90 text-white rounded-full shadow-[0_4px_24px_rgba(179,0,0,0.5)] transition-all duration-300 hover:scale-110 active:scale-95 group cursor-pointer"
+          className={`fixed bottom-6 ${isVoiceOpen ? 'right-4 sm:right-[410px]' : 'right-4 sm:right-6'} z-50 flex items-center justify-center w-14 h-14 bg-brand hover:bg-brand/90 text-white rounded-full shadow-[0_4px_24px_rgba(179,0,0,0.5)] transition-all duration-300 hover:scale-110 active:scale-95 group cursor-pointer`}
         >
           <span className="absolute right-16 bg-neutral-900 text-brand border border-brand/30 text-[10px] font-bold tracking-wider uppercase px-3 py-1.5 rounded-sm whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none shadow-xl">
             Sohbete Katılın
           </span>
           <span className="absolute inset-0 rounded-full bg-brand/40 animate-ping opacity-75 pointer-events-none"></span>
           <MessageSquare className="w-7 h-7 relative z-10" />
+        </button>
+      )}
+
+      {/* Floating TeamSpeak Voice Trigger Button */}
+      {!isVoiceOpen && (
+        <button
+          onClick={() => {
+            setIsVoiceOpen(true);
+          }}
+          title="AYMC Telsiz (Canlı Konuşma)"
+          className={`fixed bottom-6 ${isChatOpen ? 'right-4 sm:right-[410px]' : 'right-4 sm:right-24'} z-50 flex items-center justify-center w-14 h-14 bg-neutral-900 border border-brand/30 hover:border-brand text-brand hover:text-white rounded-full shadow-[0_4px_24px_rgba(0,0,0,0.6)] transition-all duration-300 hover:scale-110 active:scale-95 group cursor-pointer`}
+        >
+          <span className="absolute right-16 bg-neutral-900 text-brand border border-brand/30 text-[10px] font-bold tracking-wider uppercase px-3 py-1.5 rounded-sm whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none shadow-xl">
+            Canlı Telsiz
+          </span>
+          <span className="absolute inset-0 rounded-full bg-emerald-500/10 animate-pulse pointer-events-none"></span>
+          <RadioTower className="w-6 h-6 relative z-10" />
         </button>
       )}
 
@@ -302,12 +322,39 @@ export default function App() {
                 currentUser={chatUser} 
                 onLogoutSuccess={handleChatLogout} 
                 onClose={() => setIsChatOpen(false)} 
+                onOpenVoice={() => setIsVoiceOpen(true)}
               />
             ) : (
               <div className="h-full flex flex-col relative bg-[#050505]">
                 <div className="bg-[#090909] border-b border-neutral-900 p-4 flex justify-between items-center shrink-0">
                    <h3 className="text-brand font-bebas tracking-wider text-xl">SOHBET GİRİŞİ</h3>
                    <button onClick={() => setIsChatOpen(false)} className="text-neutral-500 hover:text-white transition-colors cursor-pointer">
+                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                   </button>
+                </div>
+                <div className="flex-1 overflow-y-auto">
+                   <Login onLoginSuccess={handleChatLoginSuccess} isLoading={isLoading} setIsLoading={setIsLoading} />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Floating TeamSpeak Voice Window (Widget) */}
+      {isVoiceOpen && (
+        <div className={`fixed bottom-6 ${isChatOpen ? 'right-4 sm:right-[410px]' : 'right-4 sm:right-6'} z-[60] w-[calc(100vw-2rem)] sm:w-[380px] h-[70dvh] sm:h-[550px] max-h-[700px] bg-neutral-950 border border-neutral-800 rounded-xl shadow-2xl flex flex-col overflow-hidden animate-fade-in`}>
+          <div className="flex-1 overflow-hidden relative">
+            {chatUser ? (
+              <VoiceRoom 
+                currentUser={chatUser} 
+                onClose={() => setIsVoiceOpen(false)} 
+              />
+            ) : (
+              <div className="h-full flex flex-col relative bg-[#050505]">
+                <div className="bg-[#090909] border-b border-neutral-900 p-4 flex justify-between items-center shrink-0">
+                   <h3 className="text-brand font-bebas tracking-wider text-xl">TELSİZ GİRİŞİ</h3>
+                   <button onClick={() => setIsVoiceOpen(false)} className="text-neutral-500 hover:text-white transition-colors cursor-pointer">
                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
                    </button>
                 </div>

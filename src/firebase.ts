@@ -1,6 +1,7 @@
 import { initializeApp, getApp, getApps } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore, enableIndexedDbPersistence } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 import firebaseConfig from '../firebase-applet-config.json';
 
 // Initialize Firebase App gracefully
@@ -17,6 +18,7 @@ try {
 
 export const db = getFirestore(app!, (firebaseConfig as any).firestoreDatabaseId);
 export const auth = getAuth(app!);
+export const storage = getStorage(app!);
 export const googleAuthProvider = new GoogleAuthProvider();
 
 // Enable multi-tab offline support for Firestore (strongly requested!)
@@ -57,7 +59,10 @@ export function translateFirebaseError(error: any): string {
     return 'Giriş Hatası: Bu kullanıcı hesabı askıya alınmıştır.';
   }
   if (errorCode.includes('auth/popup-closed-by-user')) {
-    return 'Giriş İptal Edildi: Google giriş penceresi kapatıldı.';
+    return 'Giriş İptal Edildi: Google giriş penceresi kapatıldı veya tarayıcı tarafından engellendi. (Not: AI Studio içinden giriyorsanız sağ üstten uygulamayı "YENİ SEKMEDE" açarak deneyin).';
+  }
+  if (errorCode.includes('auth/cross-origin-cookies-disabled') || errorCode.includes('Cross-Origin-Opener-Policy')) {
+    return 'Tarayıcı Güvenlik Hatası: Çapraz kökenli çerezler engellendi. (Not: Uygulamayı sağ üstteki butondan "YENİ SEKMEDE" açarak giriş yapmayı deneyin).';
   }
   
   return `Bir hata oluştu: ${error.message || errorCode}`;
@@ -109,5 +114,9 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     path
   };
   console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  
+  // Only throw if it is a mutation (WRITE, DELETE, CREATE, UPDATE) to prevent async listener crashes
+  if (operationType !== OperationType.LIST && operationType !== OperationType.GET) {
+    throw new Error(JSON.stringify(errInfo));
+  }
 }

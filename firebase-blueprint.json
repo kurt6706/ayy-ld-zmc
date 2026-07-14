@@ -90,6 +90,66 @@
         "isSystem": { "type": "boolean" }
       },
       "required": ["id", "sender", "text", "timestamp"]
+    },
+    "galleryItem": {
+      "title": "GalleryItem",
+      "description": "Photos and videos of club events",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "url": { "type": "string" },
+        "category": { "type": "string" },
+        "description": { "type": "string" },
+        "date": { "type": "string" },
+        "type": { "type": "string", "enum": ["image", "video"] },
+        "thumbnailUrl": { "type": "string" }
+      },
+      "required": ["id", "url", "category", "description", "date", "type"]
+    },
+    "voicePresence": {
+      "title": "VoicePresence",
+      "description": "Active voice channel presence and status of users",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "activeChannelId": { "type": "string" },
+        "isMuted": { "type": "boolean" },
+        "isDeafened": { "type": "boolean" },
+        "isSpeaking": { "type": "boolean" },
+        "lastActiveTime": { "type": "number" }
+      },
+      "required": ["uid", "displayName", "activeChannelId", "isMuted", "isDeafened", "isSpeaking", "lastActiveTime"]
+    },
+    "voicePacket": {
+      "title": "VoicePacket",
+      "description": "Real-time voice packet for walkie-talkie communication",
+      "type": "object",
+      "properties": {
+        "channelId": { "type": "string" },
+        "senderUid": { "type": "string" },
+        "senderName": { "type": "string" },
+        "audioData": { "type": "string" },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["channelId", "senderUid", "senderName", "audioData", "timestamp"]
+    },
+    "voiceChannel": {
+      "title": "VoiceChannel",
+      "description": "Dynamic voice channel configuration",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "icon": { "type": "string" },
+        "password": { "type": "string" },
+        "roleRestriction": { "type": "string" },
+        "isLocked": { "type": "boolean" },
+        "isStatic": { "type": "boolean" }
+      },
+      "required": ["id", "name", "description", "icon"]
     }
   },
   "firestore": {
@@ -112,6 +172,22 @@
     "/chatMessages/{messageId}": {
       "schema": "chatMessage",
       "description": "Live chat system messages"
+    },
+    "/galleryItems/{itemId}": {
+      "schema": "galleryItem",
+      "description": "Photos and videos of club events"
+    },
+    "/voicePresence/{uid}": {
+      "schema": "voicePresence",
+      "description": "Voice channel presence list"
+    },
+    "/voicePackets/{packetId}": {
+      "schema": "voicePacket",
+      "description": "Voice packets for voice streams"
+    },
+    "/voiceChannels/{channelId}": {
+      "schema": "voiceChannel",
+      "description": "Voice channels list"
     }
   }
 }

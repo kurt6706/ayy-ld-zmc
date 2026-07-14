@@ -72,11 +72,35 @@ export default function Blog({ posts, onAddComment, onLikePost }: BlogProps) {
     setCommentText('');
   };
 
-  const handleShareClick = (postId: string) => {
-    const postUrl = `${window.location.origin}/#/haberler/${postId}`;
-    navigator.clipboard.writeText(postUrl);
-    setCopiedPostId(postId);
-    setTimeout(() => setCopiedPostId(null), 2000);
+  const handleShareClick = async (postId: string) => {
+    const postUrl = `${window.location.origin}?page=news&post=${postId}`;
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(postUrl);
+      } else {
+        // Fallback for iframe environments
+        const textArea = document.createElement("textarea");
+        textArea.value = postUrl;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-999999px";
+        textArea.style.top = "-999999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+          document.execCommand('copy');
+        } catch (error) {
+          console.error("Fallback copy failed", error);
+        }
+        textArea.remove();
+      }
+      setCopiedPostId(postId);
+      setTimeout(() => setCopiedPostId(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy text: ', err);
+      // Optional: fallback to alert if everything fails
+      alert(`Bağlantı: ${postUrl}`);
+    }
   };
 
   if (activePost) {

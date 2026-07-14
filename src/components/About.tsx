@@ -254,9 +254,9 @@ export default function About() {
                 className="w-full h-auto rounded-sm transition-all duration-700 object-cover aspect-square shadow-2xl"
                 referrerPolicy="no-referrer"
               />
-              <div className="absolute bottom-6 left-6 right-6 p-4 bg-black/90 backdrop-blur-md border border-gold/20 rounded-sm text-center">
-                <p className="font-bebas text-lg tracking-wider text-white">"ONUR, DİSİPLİN VE SADAKAT"</p>
-                <p className="font-sans text-[10px] tracking-widest text-gold uppercase mt-1">AYMC RESMİ PATCH</p>
+              <div className="mt-4 flex flex-col justify-center p-4 bg-black/90 backdrop-blur-md border border-gold/20 rounded-sm text-center h-[50px]">
+                <p className="font-bebas text-lg tracking-wider text-white leading-none">"ONUR, DİSİPLİN VE SADAKAT"</p>
+                <p className="font-sans text-[10px] tracking-widest text-gold uppercase mt-1 leading-none">AYMC RESMİ PATCH</p>
               </div>
             </div>
           </div>

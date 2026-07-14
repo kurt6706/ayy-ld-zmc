@@ -158,5 +158,81 @@ service cloud.firestore {
     match /test/{docId} {
       allow read, write: if true;
     }
+
+    // 12. Gallery Items
+    function isValidGalleryItem(data) {
+      return data.id is string &&
+             data.url is string && data.url.size() <= 1200000 &&
+             data.category is string &&
+             data.description is string && data.description.size() <= 2000 &&
+             data.date is string &&
+             data.type is string && (data.type == 'image' || data.type == 'video');
+    }
+
+    match /galleryItems/{itemId} {
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidGalleryItem(incoming());
+      allow delete: if isAdmin();
+    }
+
+    // 13. Media Items
+    match /media/{itemId} {
+      allow read: if true;
+      allow create, update: if isSignedIn();
+      allow delete: if isAdmin() || isOwner(resource.data.ownerId);
+    }
+
+    // 14. Voice Presence
+    function isValidVoicePresence(data, targetUid) {
+      return data.uid == targetUid &&
+             data.displayName is string && data.displayName.size() <= 100 &&
+             (data.activeChannelId == null || data.activeChannelId is string) &&
+             data.isMuted is bool &&
+             data.isDeafened is bool &&
+             data.isSpeaking is bool &&
+             data.lastActiveTime is number &&
+             (!('photoURL' in data) || data.photoURL == null || data.photoURL is string) &&
+             (!('isServerMuted' in data) || data.isServerMuted is bool) &&
+             (!('role' in data) || data.role is string);
+    }
+
+    match /voicePresence/{uid} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && (uid == request.auth.uid || isAdmin()) && isValidVoicePresence(incoming(), uid);
+      allow delete: if isSignedIn() && (uid == request.auth.uid || isAdmin());
+    }
+
+    // 15. Voice Packets
+    function isValidVoicePacket(data) {
+      return data.senderUid == request.auth.uid &&
+             data.senderName is string && data.senderName.size() <= 100 &&
+             data.channelId is string && data.channelId.size() <= 100 &&
+             data.audioData is string && data.audioData.size() <= 1000000 &&
+             data.timestamp is number;
+    }
+
+    match /voicePackets/{packetId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidVoicePacket(incoming());
+      allow update, delete: if false;
+    }
+
+    // 16. Voice Channels
+    function isValidVoiceChannel(data) {
+      return data.id is string && data.id.size() <= 100 &&
+             data.name is string && data.name.size() <= 100 &&
+             data.description is string && data.description.size() <= 500 &&
+             data.icon is string &&
+             (!('password' in data) || data.password == null || data.password is string) &&
+             (!('roleRestriction' in data) || data.roleRestriction == null || data.roleRestriction is string) &&
+             (!('isLocked' in data) || data.isLocked is bool) &&
+             (!('isStatic' in data) || data.isStatic is bool);
+    }
+
+    match /voiceChannels/{channelId} {
+      allow read: if isSignedIn();
+      allow create, update: if isAdmin() && isValidVoiceChannel(incoming());
+      allow delete: if isAdmin();
+    }
   }
 }

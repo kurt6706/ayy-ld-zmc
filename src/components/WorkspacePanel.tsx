@@ -18,7 +18,7 @@ import {
   Trash2,
   Presentation
 } from 'lucide-react';
-import { auth, googleAuthProvider } from '../firebase';
+import { auth, googleAuthProvider, translateFirebaseError } from '../firebase';
 import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 
 interface WorkspacePanelProps {
@@ -118,8 +118,8 @@ export default function WorkspacePanel({ currentUser }: WorkspacePanelProps) {
       setAuthorized(true);
       fetchTabData(activeTab);
     } catch (err: any) {
-      setError(err.message || 'Yetkilendirme hatası oluştu.');
       console.error(err);
+      setError(translateFirebaseError(err));
     } finally {
       setLoading(false);
     }

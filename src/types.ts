@@ -9,6 +9,10 @@ export interface ChatMessage {
   photoURL?: string;
   edited?: boolean;
   deleted?: boolean;
+  mediaType?: 'text' | 'audio' | 'video' | 'image';
+  audioUrl?: string;
+  videoUrl?: string;
+  imageUrl?: string;
 }
 
 export interface ChatUser {
@@ -27,6 +31,30 @@ export interface TypingState {
   name: string;
   isTyping: boolean;
   timestamp: number;
+}
+
+export interface VoiceChannel {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  password?: string;
+  roleRestriction?: string; // 'admin' | 'member' etc.
+  isLocked?: boolean;
+  isStatic?: boolean;
+}
+
+export interface VoiceMember {
+  uid: string;
+  displayName: string;
+  photoURL?: string;
+  activeChannelId: string | null;
+  isMuted: boolean;
+  isDeafened: boolean;
+  isSpeaking: boolean;
+  lastActiveTime: number;
+  isServerMuted?: boolean;
+  role?: string;
 }
 
 export type Theme = 'light' | 'dark';
@@ -138,15 +166,7 @@ export interface BlogComment {
   date: string;
 }
 
-export interface GalleryItem {
-  id: string;
-  url: string;
-  category: 'Sürüş' | 'Kamp' | 'Sosyal' | 'Drone' | 'Klasik' | 'Videolar' | string;
-  description: string;
-  date: string;
-  type?: 'image' | 'video';
-  thumbnailUrl?: string;
-}
+
 
 export interface ClubRule {
   id: string;

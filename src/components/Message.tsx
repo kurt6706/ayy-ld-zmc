@@ -1,8 +1,188 @@
-import React, { useState } from 'react';
-import { Edit2, Trash2, Check, X, ShieldAlert } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Edit2, Trash2, Check, X, ShieldAlert, Play, Pause, Mic, Video, Image, Eye } from 'lucide-react';
 import { ChatMessage } from '../types';
 import { formatMessageTime, getDeterministicAvatar } from '../utils';
 import { editMessageDoc, deleteMessageDoc } from '../firestore';
+
+function CustomAudioPlayer({ src }: { src: string }) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    const audio = new Audio(src);
+    audioRef.current = audio;
+
+    const handlePlay = () => setIsPlaying(true);
+    const handlePause = () => setIsPlaying(false);
+    const handleTimeUpdate = () => {
+      if (audio.duration) {
+        setProgress((audio.currentTime / audio.duration) * 100);
+      }
+    };
+    const handleLoadedMetadata = () => {
+      setDuration(audio.duration);
+    };
+    const handleEnded = () => {
+      setIsPlaying(false);
+      setProgress(0);
+    };
+
+    audio.addEventListener('play', handlePlay);
+    audio.addEventListener('pause', handlePause);
+    audio.addEventListener('timeupdate', handleTimeUpdate);
+    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audio.addEventListener('ended', handleEnded);
+
+    return () => {
+      audio.pause();
+      audio.removeEventListener('play', handlePlay);
+      audio.removeEventListener('pause', handlePause);
+      audio.removeEventListener('timeupdate', handleTimeUpdate);
+      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.removeEventListener('ended', handleEnded);
+    };
+  }, [src]);
+
+  const togglePlay = () => {
+    if (!audioRef.current) return;
+    if (isPlaying) {
+      audioRef.current.pause();
+    } else {
+      audioRef.current.play();
+    }
+  };
+
+  const formatTime = (time: number) => {
+    if (isNaN(time)) return '0:00';
+    const minutes = Math.floor(time / 60);
+    const seconds = Math.floor(time % 60);
+    return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+  };
+
+  return (
+    <div className="flex items-center gap-3 bg-neutral-950 border border-neutral-850 rounded-xl p-3 min-w-[220px] max-w-full">
+      <button 
+        type="button"
+        onClick={togglePlay}
+        className="w-10 h-10 rounded-full bg-brand hover:bg-brand-dark flex items-center justify-center text-white transition-all shadow-md active:scale-95 shrink-0"
+      >
+        {isPlaying ? (
+          <Pause className="w-4 h-4 fill-current" />
+        ) : (
+          <Play className="w-4 h-4 fill-current ml-0.5" />
+        )}
+      </button>
+      <div className="flex-1 min-w-0">
+        <div className="w-full bg-neutral-850 h-1.5 rounded-full overflow-hidden relative">
+          <div 
+            className="bg-brand h-full rounded-full transition-all duration-100" 
+            style={{ width: `${progress}%` }}
+          ></div>
+        </div>
+        <div className="flex justify-between items-center mt-1.5 text-[9px] text-neutral-400 font-mono">
+          <span>{formatTime(audioRef.current?.currentTime || 0)}</span>
+          <span className="flex items-center gap-1">
+            <Mic className="w-2.5 h-2.5 text-neutral-500" /> Sesli Mesaj • {formatTime(duration)}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CustomVideoPlayer({ src }: { src: string }) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  const togglePlay = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!videoRef.current) return;
+    if (isPlaying) {
+      videoRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      videoRef.current.play();
+      setIsPlaying(true);
+    }
+  };
+
+  return (
+    <div className="relative rounded-xl overflow-hidden bg-black border border-neutral-850 max-w-[240px] shadow-lg group/video cursor-pointer" onClick={togglePlay}>
+      <video 
+        ref={videoRef}
+        src={src} 
+        className="w-full h-auto object-cover max-h-[180px] rounded-xl"
+        playsInline
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+        onEnded={() => setIsPlaying(false)}
+      />
+      <div className={`absolute inset-0 flex items-center justify-center bg-black/30 transition-opacity ${isPlaying ? 'opacity-0 group-hover/video:opacity-100' : 'opacity-100'}`}>
+        <div className="w-12 h-12 rounded-full bg-brand/90 hover:bg-brand flex items-center justify-center text-white shadow-xl transition-transform active:scale-90">
+          {isPlaying ? (
+            <Pause className="w-5 h-5 fill-current" />
+          ) : (
+            <Play className="w-5 h-5 fill-current ml-0.5" />
+          )}
+        </div>
+      </div>
+      <div className="absolute bottom-2 left-2 right-2 flex justify-between items-center text-[9px] text-white bg-black/60 backdrop-blur-sm px-2 py-1 rounded font-mono pointer-events-none">
+        <span className="flex items-center gap-1">
+          <Video className="w-2.5 h-2.5 text-brand" /> Video Mesaj
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function CustomImageMessage({ src }: { src: string }) {
+  const [showLightbox, setShowLightbox] = useState(false);
+
+  return (
+    <>
+      <div 
+        onClick={() => setShowLightbox(true)}
+        className="relative rounded-xl overflow-hidden bg-neutral-900 border border-neutral-850 max-w-[240px] shadow-lg cursor-pointer group/image transition-all hover:scale-[1.01] active:scale-95"
+      >
+        <img 
+          src={src} 
+          alt="Paylaşılan Görsel" 
+          className="w-full h-auto object-cover max-h-[180px] rounded-xl"
+          referrerPolicy="no-referrer"
+        />
+        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/image:opacity-100 flex items-center justify-center transition-opacity">
+          <div className="bg-brand/90 p-2 rounded-full text-white shadow-lg">
+            <Eye className="w-4 h-4" />
+          </div>
+        </div>
+      </div>
+
+      {showLightbox && (
+        <div 
+          onClick={() => setShowLightbox(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-md animate-fade-in p-4"
+        >
+          <button 
+            type="button"
+            onClick={() => setShowLightbox(false)}
+            className="absolute top-4 right-4 p-2 bg-neutral-900/80 border border-neutral-800 text-neutral-400 hover:text-white rounded-full transition-colors"
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <img 
+            src={src} 
+            alt="Paylaşılan Görsel" 
+            className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl animate-scale-in"
+            onClick={(e) => e.stopPropagation()}
+            referrerPolicy="no-referrer"
+          />
+        </div>
+      )}
+    </>
+  );
+}
 
 interface MessageProps {
   key?: any;
@@ -90,12 +270,12 @@ export default function Message({ message, currentUserUid, onActionError }: Mess
         </div>
 
         {/* Bubble */}
-        <div className={`relative px-4 py-3 rounded-2xl text-xs font-sans shadow-md break-words whitespace-pre-wrap ${
+        <div className={`relative rounded-2xl text-xs font-sans shadow-md break-words whitespace-pre-wrap ${
           message.deleted
-            ? 'bg-neutral-900/40 border border-neutral-900 text-neutral-600 italic rounded-tl-sm'
-            : isMe
-              ? 'bg-brand text-white rounded-tr-sm'
-              : 'bg-neutral-900 border border-neutral-850 text-neutral-200 rounded-tl-sm'
+            ? 'px-4 py-3 bg-neutral-900/40 border border-neutral-900 text-neutral-600 italic rounded-tl-sm'
+            : (!message.mediaType || message.mediaType === 'text')
+              ? (isMe ? 'px-4 py-3 bg-brand text-white rounded-tr-sm' : 'px-4 py-3 bg-neutral-900 border border-neutral-850 text-neutral-200 rounded-tl-sm')
+              : 'p-0 bg-transparent rounded-lg shadow-none'
         }`}>
           
           {isEditing ? (
@@ -131,6 +311,16 @@ export default function Message({ message, currentUserUid, onActionError }: Mess
                 </button>
               </div>
             </form>
+          ) : message.deleted ? (
+            <div>
+              <span>{message.text}</span>
+            </div>
+          ) : message.mediaType === 'audio' && message.audioUrl ? (
+            <CustomAudioPlayer src={message.audioUrl} />
+          ) : message.mediaType === 'video' && message.videoUrl ? (
+            <CustomVideoPlayer src={message.videoUrl} />
+          ) : message.mediaType === 'image' && message.imageUrl ? (
+            <CustomImageMessage src={message.imageUrl} />
           ) : (
             <div>
               <span>{message.text}</span>

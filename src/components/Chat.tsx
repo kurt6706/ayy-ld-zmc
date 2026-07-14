@@ -33,9 +33,10 @@ interface ChatProps {
   currentUser: any;
   onLogoutSuccess: () => void;
   onClose?: () => void;
+  onOpenVoice?: () => void;
 }
 
-export default function Chat({ currentUser, onLogoutSuccess, onClose }: ChatProps) {
+export default function Chat({ currentUser, onLogoutSuccess, onClose, onOpenVoice }: ChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [activeUsers, setActiveUsers] = useState<ChatUser[]>([]);
   const [typingUsers, setTypingUsers] = useState<TypingState[]>([]);
@@ -188,14 +189,18 @@ export default function Chat({ currentUser, onLogoutSuccess, onClose }: ChatProp
   }, [messages, typingUsers]);
 
   // Handle sending message doc
-  const handleSendMessage = async (text: string) => {
+  const handleSendMessage = async (text: string, mediaType?: 'text' | 'audio' | 'video' | 'image', mediaUrl?: string) => {
     try {
       setError('');
       await sendMessageDoc(
         text,
         currentUser.displayName || 'Anonim',
         currentUser.uid,
-        currentUser.photoURL || undefined
+        currentUser.photoURL || undefined,
+        mediaType,
+        mediaType === 'audio' ? mediaUrl : undefined,
+        mediaType === 'video' ? mediaUrl : undefined,
+        mediaType === 'image' ? mediaUrl : undefined
       );
     } catch (err: any) {
       setError(err.message || 'Mesaj gönderilemedi.');
@@ -544,6 +549,7 @@ export default function Chat({ currentUser, onLogoutSuccess, onClose }: ChatProp
         <MessageInput 
           currentUser={currentUser} 
           onSendMessage={handleSendMessage} 
+          onOpenVoice={onOpenVoice}
         />
 
       </div>

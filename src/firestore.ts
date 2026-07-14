@@ -7,14 +7,15 @@ import {
   deleteDoc, 
   query, 
   orderBy, 
+  where,
   onSnapshot, 
   serverTimestamp, 
   limit,
   getDocs,
   Timestamp
 } from 'firebase/firestore';
-import { db, translateFirebaseError } from './firebase';
-import { ChatMessage, ChatUser, TypingState } from './types';
+import { db, translateFirebaseError, handleFirestoreError, OperationType } from './firebase';
+import { ChatMessage, ChatUser, TypingState, VoiceChannel, VoiceMember } from './types';
 
 // Verification check: Verifies connection by fetching a single document from messages
 export async function verifyFirestoreConnection(): Promise<boolean> {
@@ -48,7 +49,11 @@ export function subscribeMessages(onUpdate: (messages: ChatMessage[]) => void, o
           createdAt: data.createdAt,
           photoURL: data.photoURL || '',
           edited: !!data.edited,
-          deleted: !!data.deleted
+          deleted: !!data.deleted,
+          mediaType: data.mediaType || 'text',
+          audioUrl: data.audioUrl || '',
+          videoUrl: data.videoUrl || '',
+          imageUrl: data.imageUrl || ''
         });
       });
       onUpdate(messages);
@@ -67,7 +72,11 @@ export async function sendMessageDoc(
   text: string, 
   senderName: string, 
   senderUid: string, 
-  photoURL?: string
+  photoURL?: string,
+  mediaType?: 'text' | 'audio' | 'video' | 'image',
+  audioUrl?: string,
+  videoUrl?: string,
+  imageUrl?: string
 ): Promise<string> {
   try {
     const docRef = await addDoc(collection(db, 'messages'), {
@@ -77,7 +86,11 @@ export async function sendMessageDoc(
       createdAt: serverTimestamp(),
       photoURL: photoURL || '',
       edited: false,
-      deleted: false
+      deleted: false,
+      mediaType: mediaType || 'text',
+      audioUrl: audioUrl || '',
+      videoUrl: videoUrl || '',
+      imageUrl: imageUrl || ''
     });
     return docRef.id;
   } catch (error: any) {
@@ -215,4 +228,262 @@ export function subscribeTypingStates(onUpdate: (typingUsers: TypingState[]) => 
   }, (error) => {
     console.error("Error subscribing to typing states:", error);
   });
+}
+
+// --- TEAMSPEAK VOICE SYSTEM FUNCTIONS ---
+
+// Join voice channel
+export async function joinVoiceChannel(
+  uid: string,
+  displayName: string,
+  photoURL: string | null,
+  channelId: string,
+  role?: string
+): Promise<void> {
+  const path = `voicePresence/${uid}`;
+  try {
+    const docRef = doc(db, 'voicePresence', uid);
+    await setDoc(docRef, {
+      uid,
+      displayName,
+      photoURL: photoURL || null,
+      activeChannelId: channelId,
+      isMuted: false,
+      isDeafened: false,
+      isSpeaking: false,
+      lastActiveTime: Date.now(),
+      role: role || 'member'
+    }, { merge: true });
+  } catch (error) {
+    console.error("Failed to join voice channel:", error);
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+// Leave voice channel
+export async function leaveVoiceChannel(uid: string): Promise<void> {
+  const path = `voicePresence/${uid}`;
+  try {
+    const docRef = doc(db, 'voicePresence', uid);
+    await deleteDoc(docRef);
+  } catch (error) {
+    console.error("Failed to leave voice channel:", error);
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+// Set mute/deafen/speaking state
+export async function updateVoiceState(
+  uid: string,
+  states: { isMuted?: boolean; isDeafened?: boolean; isSpeaking?: boolean }
+): Promise<void> {
+  const path = `voicePresence/${uid}`;
+  try {
+    const docRef = doc(db, 'voicePresence', uid);
+    await setDoc(docRef, {
+      ...states,
+      lastActiveTime: Date.now()
+    }, { merge: true });
+  } catch (error) {
+    console.error("Failed to update voice state:", error);
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+// Send a live audio voice packet (for Walkie-Talkie TeamSpeak transmission)
+export async function sendVoicePacket(
+  channelId: string,
+  senderUid: string,
+  senderName: string,
+  audioBase64: string
+): Promise<void> {
+  const path = 'voicePackets';
+  try {
+    await addDoc(collection(db, 'voicePackets'), {
+      channelId,
+      senderUid,
+      senderName,
+      audioData: audioBase64,
+      timestamp: Date.now() // Precise client timestamp for instant filtering
+    });
+  } catch (error) {
+    console.error("Failed to send voice packet:", error);
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+// Subscribe to active voice channel participants
+export function subscribeVoicePresence(onUpdate: (members: VoiceMember[]) => void) {
+  const path = 'voicePresence';
+  const q = collection(db, 'voicePresence');
+  return onSnapshot(q, (snapshot) => {
+    const members: VoiceMember[] = [];
+    const now = Date.now();
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      // Filter out stale users who haven't updated in 5 minutes
+      if (now - (data.lastActiveTime || 0) < 300000) {
+        members.push({
+          uid: data.uid,
+          displayName: data.displayName || 'İsimsiz',
+          photoURL: data.photoURL || undefined,
+          activeChannelId: data.activeChannelId || null,
+          isMuted: !!data.isMuted,
+          isDeafened: !!data.isDeafened,
+          isSpeaking: !!data.isSpeaking,
+          lastActiveTime: data.lastActiveTime || now,
+          isServerMuted: !!data.isServerMuted,
+          role: data.role || 'member'
+        });
+      }
+    });
+    onUpdate(members);
+  }, (error) => {
+    console.error("Error subscribing to voice presence:", error);
+    handleFirestoreError(error, OperationType.LIST, path);
+  });
+}
+
+// Subscribe to real-time voice packets in a channel
+// We only watch for packets created AFTER the subscription starts
+export function subscribeVoicePackets(
+  channelId: string,
+  onNewPacket: (packet: { id: string; senderUid: string; senderName: string; audioData: string }) => void
+) {
+  const path = 'voicePackets';
+  const startTime = Date.now() - 1000; // allow 1 second leeway for immediate delivery
+  const q = query(
+    collection(db, 'voicePackets'),
+    where('channelId', '==', channelId),
+    where('timestamp', '>', startTime)
+  );
+  
+  return onSnapshot(q, (snapshot) => {
+    snapshot.docChanges().forEach((change) => {
+      if (change.type === 'added') {
+        const data = change.doc.data();
+        onNewPacket({
+          id: change.doc.id,
+          senderUid: data.senderUid,
+          senderName: data.senderName,
+          audioData: data.audioData
+        });
+      }
+    });
+  }, (error) => {
+    console.error("Error subscribing to voice packets:", error);
+    handleFirestoreError(error, OperationType.LIST, path);
+  });
+}
+
+// Subscribe to dynamic voice channels list from Firestore
+export function subscribeVoiceChannels(onUpdate: (channels: VoiceChannel[]) => void) {
+  const path = 'voiceChannels';
+  const q = collection(db, 'voiceChannels');
+  return onSnapshot(q, (snapshot) => {
+    const channels: VoiceChannel[] = [];
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      channels.push({
+        id: data.id || doc.id,
+        name: data.name || 'İsimsiz Oda',
+        description: data.description || '',
+        icon: data.icon || 'Radio',
+        password: data.password || undefined,
+        roleRestriction: data.roleRestriction || undefined,
+        isLocked: !!data.isLocked,
+        isStatic: !!data.isStatic
+      });
+    });
+    onUpdate(channels);
+  }, (error) => {
+    console.error("Error subscribing to voice channels:", error);
+    handleFirestoreError(error, OperationType.LIST, path);
+  });
+}
+
+// Create a dynamic voice channel
+export async function createVoiceChannel(channel: VoiceChannel): Promise<void> {
+  const path = `voiceChannels/${channel.id}`;
+  try {
+    const docRef = doc(db, 'voiceChannels', channel.id);
+    await setDoc(docRef, {
+      ...channel,
+      isStatic: false
+    });
+  } catch (error) {
+    console.error("Failed to create voice channel:", error);
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+// Delete a dynamic voice channel
+export async function deleteVoiceChannel(channelId: string): Promise<void> {
+  const path = `voiceChannels/${channelId}`;
+  try {
+    const docRef = doc(db, 'voiceChannels', channelId);
+    await deleteDoc(docRef);
+  } catch (error) {
+    console.error("Failed to delete voice channel:", error);
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+// Edit a dynamic voice channel
+export async function editVoiceChannel(channelId: string, updates: Partial<VoiceChannel>): Promise<void> {
+  const path = `voiceChannels/${channelId}`;
+  try {
+    const docRef = doc(db, 'voiceChannels', channelId);
+    await updateDoc(docRef, updates);
+  } catch (error) {
+    console.error("Failed to edit voice channel:", error);
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+// Mute/unmute user server-side by Admin
+export async function setServerMutedState(uid: string, isServerMuted: boolean): Promise<void> {
+  const path = `voicePresence/${uid}`;
+  try {
+    const docRef = doc(db, 'voicePresence', uid);
+    await setDoc(docRef, {
+      isServerMuted,
+      isMuted: isServerMuted ? true : false, // Force mute
+      lastActiveTime: Date.now()
+    }, { merge: true });
+  } catch (error) {
+    console.error("Failed to set server mute state:", error);
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+// Kick user from voice channel by Admin
+export async function kickUserFromVoice(uid: string): Promise<void> {
+  const path = `voicePresence/${uid}`;
+  try {
+    const docRef = doc(db, 'voicePresence', uid);
+    await updateDoc(docRef, {
+      activeChannelId: null,
+      isSpeaking: false,
+      lastActiveTime: Date.now()
+    });
+  } catch (error) {
+    console.error("Failed to kick user from voice:", error);
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+// Move user to another voice channel by Admin
+export async function moveUserToChannel(uid: string, channelId: string): Promise<void> {
+  const path = `voicePresence/${uid}`;
+  try {
+    const docRef = doc(db, 'voicePresence', uid);
+    await updateDoc(docRef, {
+      activeChannelId: channelId,
+      lastActiveTime: Date.now()
+    });
+  } catch (error) {
+    console.error("Failed to move user to channel:", error);
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
 }

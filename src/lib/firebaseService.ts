@@ -16,7 +16,7 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { Event, Route, BlogPost, GalleryItem, UserPost } from '../types';
+import { Event, Route, BlogPost, UserPost } from '../types';
 import { DEFAULT_EVENTS, DEFAULT_ROUTES, DEFAULT_BLOG } from '../data';
 
 // Connection Test
@@ -351,4 +351,6 @@ export async function deleteAnnouncementDoc(id: string) {
     handleFirestoreError(error, OperationType.DELETE, `announcements/${id}`);
   }
 }
+
+
 

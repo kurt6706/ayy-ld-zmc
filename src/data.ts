@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Event, Route, BlogPost, GalleryItem, ClubRule, HandSignal, MembershipApplication } from './types';
+import { Event, Route, BlogPost, ClubRule, HandSignal, MembershipApplication } from './types';
 
 // Let's reference our custom generated images
 export const IMAGES = {

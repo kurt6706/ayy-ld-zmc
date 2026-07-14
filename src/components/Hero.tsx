@@ -15,20 +15,20 @@ export default function Hero({ onDiscoverClick }: HeroProps) {
   return (
     <div
       id="hero-section"
-      className="relative min-h-screen w-full flex flex-col justify-between bg-black text-white overflow-hidden pt-20"
+      className="relative min-h-screen w-full flex flex-col justify-end pb-24 bg-black text-white overflow-hidden pt-20"
     >
       {/* Background Image Container with Ken Burns effect */}
       <div className="absolute inset-0 z-0 overflow-hidden">
         <div 
-          className="absolute inset-0 bg-cover bg-center animate-pulse-slow scale-105"
+          className="absolute inset-0 bg-cover bg-center animate-pulse-slow scale-105 opacity-60"
           style={{ 
-            backgroundImage: `url(${IMAGES.heroBg})`,
+            backgroundImage: `url(${IMAGES.logo})`,
             animation: 'kenburns 30s ease-out infinite alternate'
           }}
         />
         {/* Cinematic Grid Lines Overlay */}
         <div className="absolute inset-0 bg-radial-gradient from-transparent via-black/40 to-black/90 z-10" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-black/45 z-10" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent z-10" />
         
         {/* Subtle Glowing Red Laser Line / Accent in background */}
         <div className="absolute bottom-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-brand to-transparent opacity-60 z-20" />
@@ -41,19 +41,10 @@ export default function Hero({ onDiscoverClick }: HeroProps) {
         <div className="absolute bottom-1/4 left-1/2 w-1 h-1 bg-white rounded-full animate-ping [animation-duration:5s]"></div>
       </div>
 
-      {/* Hero Content - Centered */}
-      <div className="relative z-20 flex-grow flex flex-col items-center justify-center text-center px-4 max-w-5xl mx-auto mt-12 md:mt-0">
-        {/* Official Club Patch / Logo */}
-        <div className="mb-6 relative group animate-fade-in">
-          <div className="absolute inset-0 bg-brand/20 rounded-full blur-xl group-hover:bg-brand/30 transition-all duration-500 scale-95" />
-          <img 
-            src={IMAGES.logo} 
-            alt="AYMC Resmi Patch" 
-            className="w-32 h-32 md:w-40 md:h-40 object-contain relative z-10 drop-shadow-[0_0_20px_rgba(220,38,38,0.4)] transition-transform duration-500 hover:scale-105"
-            referrerPolicy="no-referrer"
-          />
-        </div>
-
+      {/* Hero Content - Moved down to prevent covering the background logo */}
+      <div className="relative z-20 flex flex-col items-center justify-end text-center px-4 max-w-5xl mx-auto mt-auto">
+        {/* Official Club Patch / Logo - Small icon removed since it's now the background */}
+        
         {/* Badge Indicator */}
         <div className="mb-4 inline-flex items-center space-x-2 px-3 py-1 bg-brand/10 border border-brand/30 rounded-full">
           <Shield className="w-4 h-4 text-brand fill-brand/20" />
@@ -65,7 +56,7 @@ export default function Hero({ onDiscoverClick }: HeroProps) {
         {/* Large Cinematic Heading */}
         <h1 
           id="hero-title"
-          className="font-bebas text-5xl sm:text-7xl md:text-8xl lg:text-[9rem] leading-none tracking-tight font-extrabold select-none mb-4"
+          className="font-bebas text-5xl sm:text-7xl md:text-8xl lg:text-[8rem] leading-none tracking-tight font-extrabold select-none mb-4"
           style={{ textShadow: '0 4px 24px rgba(0,0,0,0.8)' }}
         >
           BİRLİKTE YOLA,

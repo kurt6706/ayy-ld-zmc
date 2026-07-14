@@ -1,6 +1,6 @@
 {
   "name": "Ayyıldız Moto Kulüp",
   "description": "Ayyıldız Moto Kulüp (AYMC) resmi web sitesi. Prestij, kurumsallık, güven, disiplin, kardeşlik ve milli değerleri temsil eden premium motosiklet kulübü platformu.",
-  "requestFramePermissions": [],
+  "requestFramePermissions": ["camera", "microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

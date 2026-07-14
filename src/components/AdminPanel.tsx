@@ -5,10 +5,10 @@
 
 import React, { useState } from 'react';
 import { Lock, Unlock, Eye, EyeOff, LayoutDashboard, Users, Calendar, Plus, RefreshCw, LogOut, Check, X, FileText, Map, Image, Edit3, Trash2, ArrowLeft, MessageSquare } from 'lucide-react';
-import { Event, Route, BlogPost, GalleryItem, UserPost } from '../types';
+import { Event, Route, BlogPost, UserPost } from '../types';
 import { IMAGES } from '../data';
 import { addOrUpdateUserPost, deleteUserPostDoc, addOrUpdateUser } from '../lib/firebaseService';
-import { auth, googleAuthProvider } from '../firebase';
+import { auth, googleAuthProvider, translateFirebaseError } from '../firebase';
 import { signInWithPopup } from 'firebase/auth';
 
 interface AdminPanelProps {
@@ -204,7 +204,7 @@ export default function AdminPanel({
       }
     } catch (error: any) {
       console.error("Google login error:", error);
-      setLoginError(error.message || 'Google ile giriş başarısız oldu.');
+      setLoginError(translateFirebaseError(error));
     }
   };
 
@@ -679,7 +679,7 @@ export default function AdminPanel({
                         }
                         alert("Google hesabınız başarıyla bağlandı!");
                       } catch (err: any) {
-                        alert("Bağlantı başarısız: " + err.message);
+                        alert("Bağlantı başarısız: " + translateFirebaseError(err));
                       }
                     }}
                     className="mt-4 flex items-center justify-center gap-2 bg-[#0e0e0e] hover:bg-neutral-900 border border-neutral-800 hover:border-neutral-700 text-neutral-300 hover:text-white px-3 py-1.5 rounded-sm text-[10px] font-bold uppercase tracking-wider transition-all"

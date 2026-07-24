@@ -38,10 +38,12 @@ export default function Login({ onLoginSuccess, isLoading, setIsLoading }: Login
       const fUser = await loginAnonymously();
       
       // Set display name in auth profile
-      await updateProfile(fUser, {
-        displayName: nickname.trim(),
-        photoURL: '' // empty so we use default deterministic avatar
-      });
+      if (fUser && !(fUser as any).uid_mocked) {
+        await updateProfile(fUser, {
+          displayName: nickname.trim(),
+          photoURL: '' // empty so we use default deterministic avatar
+        });
+      }
 
       // Update active user presence
       await updateUserPresence(

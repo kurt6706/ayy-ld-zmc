@@ -7,6 +7,13 @@ import React from 'react';
 import { Shield, Users, Compass, Award, Star, Flame, Map, Zap, Crown, Heart, FileText, Gavel } from 'lucide-react';
 import { IMAGES } from '../data';
 
+import founderImgSuleyman from '../assets/images/regenerated_image_1784318617821.jpg';
+import founderImgMelih from '../assets/images/regenerated_image_1784318618652.jpg';
+import founderImgAkif from '../assets/images/regenerated_image_1784318619634.jpg';
+import founderImgMelek from '../assets/images/regenerated_image_1784318620509.jpg';
+import founderImgKurtulus from '../assets/images/regenerated_image_1784318621312.jpg';
+import founderImgSeyfettin from '../assets/images/regenerated_image_1784318621640.jpg';
+
 export default function About() {
   const principles = [
     {
@@ -35,7 +42,7 @@ export default function About() {
     {
       name: 'SÜLEYMAN BAŞOL',
       title: 'KURUCU GENEL BAŞKAN / PRESIDENT',
-      image: '',
+      image: founderImgSuleyman,
       roleIcon: <Crown className="w-10 h-10 text-yellow-500" />,
       iconBg: 'bg-yellow-950/30 border-yellow-500/30 text-yellow-500 shadow-yellow-500/10',
       bio: 'Ayyıldız Motosiklet Kulübü Genel Başkanı. Kulübün vizyonunu belirleyen, sarsılmaz tüzük ilkelerini ve kardeşlik bağlarını yöneten en üst düzey liderimiz.',
@@ -63,6 +70,7 @@ export default function About() {
     {
       name: 'MELİH BAŞOL',
       title: 'KURUCU BAŞKAN YARDIMCISI / VICE PRESIDENT',
+      image: founderImgMelih,
       roleIcon: <Award className="w-10 h-10 text-slate-300" />,
       iconBg: 'bg-slate-900/40 border-slate-500/30 text-slate-300 shadow-slate-500/10',
       bio: 'Kortej düzeni, ulusal ve uluslararası organizasyon planlamaları ile kulübümüzün operasyonel koordinasyonundan sorumlu lider.',
@@ -90,6 +98,7 @@ export default function About() {
     {
       name: 'BUKET ŞİMŞEK',
       title: ' SEKRETER / SECRETARY',
+      image: 'https://images.unsplash.com/photo-1611002214172-792c1f90b59a?w=600&auto=format&fit=crop&q=80',
       roleIcon: <FileText className="w-10 h-10 text-amber-500" />,
       iconBg: 'bg-amber-950/20 border-amber-500/30 text-amber-500 shadow-amber-500/10',
       bio: 'Resmi yazışmalar, üye kayıtları, idari yönetim ve Moto Family dijital entegrasyon koordinatörlüğü başkanı.',
@@ -117,6 +126,7 @@ export default function About() {
     {
       name: 'AKİF CAN ALTINOK',
       title: 'YOL KAPTANI / ROAD CAPTAIN',
+      image: founderImgAkif,
       roleIcon: <Compass className="w-10 h-10 text-emerald-400" />,
       iconBg: 'bg-emerald-950/20 border-emerald-500/30 text-emerald-400 shadow-emerald-500/10',
       bio: 'Sürüş rotalarının güvenliğini planlayan, kortej hızını, nizamını ve emniyet tedbirlerini en üst düzeyde denetleyen baş yetkili.',
@@ -144,6 +154,7 @@ export default function About() {
     {
       name: 'MELEK DOĞANAY',
       title: 'KADIN GÜCÜ  / LADIES POWER',
+      image: founderImgMelek,
       roleIcon: <Heart className="w-10 h-10 text-pink-400" />,
       iconBg: 'bg-pink-950/20 border-pink-500/30 text-pink-400 shadow-pink-500/10',
       bio: 'Ayyıldız Kadın Gücü yapılanmasının başkanı, kadın üyelerin koordinasyonu ve sosyal sorumluluk projelerinin baş yöneticisi.',
@@ -171,6 +182,7 @@ export default function About() {
     {
       name: 'KURTULUŞ DÜZLÜ',
       title: 'DİSİPLİN KURULU BAŞKANI & SWEEPER ARTÇI BAŞKAN',
+      image: founderImgKurtulus,
       roleIcon: <Gavel className="w-10 h-10 text-red-500" />,
       iconBg: 'bg-red-950/20 border-red-500/30 text-red-500 shadow-red-500/10',
       bio: 'Kulübün tavizsiz iç disiplin ve töre muhafızı. Aynı zamanda sürüşlerde koordinasyonu sağlayan swapper artçıların lideri.',
@@ -194,11 +206,39 @@ export default function About() {
           color: 'border-amber-500/30 text-amber-500 bg-amber-500/5'
         }
       ]
+    },
+    {
+      name: 'SEYFETTİN ALTINOK',
+      title: 'SOSYAL MEDYA UZMANI / SOCIAL MEDIA SPECIALIST',
+      image: founderImgSeyfettin,
+      roleIcon: <Zap className="w-10 h-10 text-cyan-400" />,
+      iconBg: 'bg-cyan-950/20 border-cyan-500/30 text-cyan-400 shadow-cyan-500/10',
+      bio: 'Kulübümüzün dijital dünyadaki sesi ve yüzü. Sosyal medya platformlarında Ayyıldız ruhunu, turlarımızı, kortejlerimizi ve kardeşliğimizi dünyaya en estetik biçimde aktaran dijital medya liderimiz.',
+      badges: [
+        {
+          name: 'MEDYA YÖNETİMİ NİŞANI',
+          desc: 'Kulübün dijital platformlar ve halkla ilişkiler resmi brövesi.',
+          icon: <Award className="w-4 h-4 text-cyan-400" />,
+          color: 'border-cyan-500/30 text-cyan-400 bg-cyan-500/5'
+        },
+        {
+          name: 'ESTETİK VİZYON',
+          desc: 'Görsel sanatlar, kurgu ve yüksek kalitede içerik üretim yetkinliği.',
+          icon: <Star className="w-4 h-4 text-yellow-400" />,
+          color: 'border-yellow-500/30 text-yellow-400 bg-yellow-500/5'
+        },
+        {
+          name: 'DİJİTAL ETKİLEŞİM',
+          desc: 'Motosiklet kültürünü kitlelere sevdiren, profesyonel sosyal medya yayılımı.',
+          icon: <Flame className="w-4 h-4 text-orange-400" />,
+          color: 'border-orange-500/30 text-orange-400 bg-orange-500/5'
+        }
+      ]
     }
   ];
 
   return (
-    <div id="about-page" className="bg-[#050505] text-white py-24 px-4 sm:px-6 lg:px-8">
+    <div id="about-page" className="bg-transparent text-white py-24 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
         
         {/* Page Header */}
@@ -330,14 +370,19 @@ export default function About() {
                 {/* Profile Emblem Symbol & Meta */}
                 <div className="flex items-center space-x-4 mb-6">
                   {founder.image ? (
-                    <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-yellow-500/30 bg-neutral-900 flex-shrink-0 relative shadow-lg transition-transform duration-500 group-hover:scale-110">
-                      <img 
-                        src={founder.image} 
-                        alt={founder.name} 
-                        className="w-full h-full object-cover filter brightness-95" 
-                        referrerPolicy="no-referrer"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+                    <div className="relative flex-shrink-0 group-hover:scale-110 transition-transform duration-500">
+                      <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-yellow-500/30 bg-neutral-900 shadow-lg">
+                        <img 
+                          src={founder.image} 
+                          alt={founder.name} 
+                          className="w-full h-full object-cover filter brightness-95" 
+                          referrerPolicy="no-referrer"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+                      </div>
+                      <div className={`absolute -bottom-1 -right-1 w-7 h-7 rounded-full border border-neutral-800 flex items-center justify-center shadow-md bg-black/95 text-white`}>
+                        {React.cloneElement(founder.roleIcon as React.ReactElement, { className: 'w-3.5 h-3.5' })}
+                      </div>
                     </div>
                   ) : (
                     <div className={`w-20 h-20 rounded-full border-2 flex items-center justify-center flex-shrink-0 relative shadow-lg ${founder.iconBg} transition-transform duration-500 group-hover:scale-110`}>

@@ -72,8 +72,28 @@ export default function MessagesPanel({ currentUser, users }: MessagesPanelProps
     );
   }
 
-  // Filter other users
-  const otherUsers = users.filter((u) => u.id !== currentUser.id && u.status === 'approved');
+  // Filter other users including dynamically synthesized guest/contact-form senders
+  const approvedUsers = users.filter((u) => u.id !== currentUser.id && u.status === 'approved');
+
+  const guestSenders = directMessages
+    .filter((msg) => msg.receiverId === currentUser.id && msg.senderId?.startsWith('guest-'))
+    .reduce((acc: any[], msg) => {
+      if (!acc.some((g) => g.id === msg.senderId)) {
+        acc.push({
+          id: msg.senderId,
+          name: msg.senderName || 'Konuk',
+          surname: '(Ziyaretçi)',
+          username: msg.senderEmail || 'konuk',
+          avatarUrl: '',
+          status: 'approved',
+          statusText: 'İletişim Formu Göndericisi',
+          email: msg.senderEmail || '',
+        });
+      }
+      return acc;
+    }, []);
+
+  const otherUsers = [...approvedUsers, ...guestSenders];
 
   // Search users filter
   const filteredUsers = otherUsers.filter((u) => {
@@ -83,7 +103,7 @@ export default function MessagesPanel({ currentUser, users }: MessagesPanelProps
     return fullname.includes(search) || username.includes(search);
   });
 
-  const activeChatUser = users.find((u) => u.id === activeChatUserId);
+  const activeChatUser = otherUsers.find((u) => u.id === activeChatUserId);
 
   // Filter messages for active chat
   const activeChatMessages = directMessages.filter((msg) => {

@@ -113,7 +113,15 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path
   };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  const errorMsg = errInfo.error;
+  const isQuota = errorMsg.toLowerCase().includes('quota');
+  const isRead = operationType === OperationType.LIST || operationType === OperationType.GET;
+
+  if (isQuota || isRead) {
+    console.warn('Firestore Non-Fatal Warning: ', JSON.stringify(errInfo));
+  } else {
+    console.error('Firestore Error: ', JSON.stringify(errInfo));
+  }
   
   // Only throw if it is a mutation (WRITE, DELETE, CREATE, UPDATE) to prevent async listener crashes
   if (operationType !== OperationType.LIST && operationType !== OperationType.GET) {

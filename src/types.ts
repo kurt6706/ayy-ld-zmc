@@ -204,3 +204,31 @@ export interface Announcement {
   date: string;
   important: boolean;
 }
+
+export interface GalleryItem {
+  id: string;
+  url: string;
+  category: string;
+  description: string;
+  date: string;
+  type: 'image' | 'video';
+  uploadedBy?: string;
+  uploaderUid?: string;
+  fileName?: string;
+  storagePath?: string;
+  mimeType?: string;
+  size?: number;
+  createdAt?: string;
+}
+
+export interface Meeting {
+  id: string;
+  title: string;
+  reason: string;
+  time: string;
+  link: string;
+  createdAt: number;
+  createdByName?: string;
+  status: 'active' | 'completed';
+}
+

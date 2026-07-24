@@ -1,0 +1,292 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="100%" height="100%">
+  <defs>
+    <!-- Background & Atmosphere Gradients -->
+    <radialGradient id="centerGlow" cx="50%" cy="40%" r="55%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.18" />
+      <stop offset="45%" stop-color="#222226" stop-opacity="0.6" />
+      <stop offset="100%" stop-color="#050507" stop-opacity="1" />
+    </radialGradient>
+
+    <linearGradient id="wallTexture" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#18181c" />
+      <stop offset="60%" stop-color="#0d0d10" />
+      <stop offset="100%" stop-color="#08080a" />
+    </linearGradient>
+
+    <linearGradient id="groundReflect" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#121215" />
+      <stop offset="30%" stop-color="#1a1a20" />
+      <stop offset="100%" stop-color="#040405" />
+    </linearGradient>
+
+    <linearGradient id="goldHighlight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.9" />
+      <stop offset="100%" stop-color="#d97706" stop-opacity="0.4" />
+    </linearGradient>
+
+    <linearGradient id="shirtGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#2a2a2e" />
+      <stop offset="40%" stop-color="#141416" />
+      <stop offset="100%" stop-color="#09090b" />
+    </linearGradient>
+
+    <!-- Filter Effects -->
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="6" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+
+    <filter id="softGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="15" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+
+    <!-- Reusable Ayyıldız Logo for Shirts -->
+    <g id="shirtLogo">
+      <path d="M0 -18 A12 12 0 1 0 10 -6 A10 10 0 1 1 0 -18 Z" fill="#ffffff" opacity="0.95"/>
+      <polygon points="4,-11 6,-5 11,-5 7,-2 9,4 4,1 0,4 1,-2 -3,-5 2,-5" fill="#ffffff" opacity="0.95"/>
+      <path d="M-15,-6 Q-22,-16 -12,-22 Q-5,-16 -8,-6 Z" fill="#ffffff" opacity="0.9"/>
+      <path d="M15,-6 Q22,-16 12,-22 Q5,-16 8,-6 Z" fill="#ffffff" opacity="0.9"/>
+      <text x="0" y="8" font-family="'Bebas Neue', 'Arial Black', sans-serif" font-size="6" font-weight="bold" fill="#ffffff" text-anchor="middle" letter-spacing="1">AYYILDIZ</text>
+      <text x="0" y="14" font-family="sans-serif" font-size="3.5" fill="#cccccc" text-anchor="middle" letter-spacing="0.5">MOTOR KULÜBÜ</text>
+    </g>
+  </defs>
+
+  <!-- 1. Base Dark Canvas -->
+  <rect width="1920" height="1080" fill="#040406" />
+
+  <!-- 2. City Skyline Night Background (Right Side) -->
+  <g opacity="0.35">
+    <rect x="1350" y="220" width="80" height="600" fill="#0a0a0e" />
+    <rect x="1420" y="180" width="110" height="640" fill="#0f0f14" />
+    <rect x="1510" y="280" width="90" height="540" fill="#08080c" />
+    <rect x="1590" y="140" width="140" height="680" fill="#0c0c10" />
+    <rect x="1710" y="200" width="120" height="620" fill="#08080c" />
+    <rect x="1810" y="300" width="100" height="520" fill="#050508" />
+
+    <!-- City Windows / Lights -->
+    <g fill="#fef08a" opacity="0.4">
+      <rect x="1440" y="200" width="4" height="6" />
+      <rect x="1460" y="200" width="4" height="6" />
+      <rect x="1480" y="220" width="4" height="6" />
+      <rect x="1440" y="250" width="4" height="6" />
+      <rect x="1470" y="280" width="4" height="6" />
+      <rect x="1610" y="160" width="5" height="7" />
+      <rect x="1630" y="160" width="5" height="7" />
+      <rect x="1660" y="190" width="5" height="7" />
+      <rect x="1620" y="220" width="5" height="7" />
+      <rect x="1650" y="250" width="5" height="7" />
+      <rect x="1680" y="290" width="5" height="7" />
+      <rect x="1730" y="220" width="4" height="6" />
+      <rect x="1760" y="260" width="4" height="6" />
+      <rect x="1740" y="300" width="4" height="6" />
+    </g>
+  </g>
+
+  <!-- 3. Main Wall Section -->
+  <rect x="0" y="0" width="1920" height="780" fill="url(#wallTexture)" />
+  <rect x="0" y="0" width="1920" height="780" fill="url(#centerGlow)" />
+
+  <!-- Wall Brick Texture Lines -->
+  <g stroke="#ffffff" stroke-opacity="0.03" stroke-width="1">
+    <line x1="0" y1="100" x2="1920" y2="100" />
+    <line x1="0" y1="200" x2="1920" y2="200" />
+    <line x1="0" y1="300" x2="1920" y2="300" />
+    <line x1="0" y1="400" x2="1920" y2="400" />
+    <line x1="0" y1="500" x2="1920" y2="500" />
+    <line x1="0" y1="600" x2="1920" y2="600" />
+    <line x1="0" y1="700" x2="1920" y2="700" />
+  </g>
+
+  <!-- 4. Left Wall Artwork: Crescent & "AYYILDIZ - BİR KULÜP DEĞİL, BİR AİLEDİR." -->
+  <g transform="translate(220, 240)" opacity="0.65">
+    <!-- Crescent Moon -->
+    <path d="M 0,-80 A 70 70 0 1 0 60,30 A 58 58 0 1 1 0,-80 Z" fill="#ffffff" opacity="0.25" />
+    <!-- Star -->
+    <polygon points="20,-25 28,0 52,0 33,15 40,40 20,24 0,40 7,15 -12,0 12,0" fill="#ffffff" opacity="0.3" />
+
+    <text x="-60" y="110" font-family="'Bebas Neue', 'Arial Black', sans-serif" font-size="42" font-weight="bold" fill="#ffffff" opacity="0.45" letter-spacing="4">AYYILDIZ</text>
+    <text x="-60" y="145" font-family="sans-serif" font-size="16" font-weight="bold" fill="#cccccc" opacity="0.35" letter-spacing="3">BİR KULÜP DEĞİL, BİR AİLEDİR.</text>
+  </g>
+
+  <!-- 5. Center Wall Emblem: Huge Glowing Ayyıldız Emblem -->
+  <g transform="translate(960, 280)">
+    <!-- Back Glow halo -->
+    <circle cx="0" cy="-20" r="220" fill="#ffffff" opacity="0.08" filter="url(#softGlow)" />
+    <circle cx="0" cy="-20" r="160" fill="#f59e0b" opacity="0.06" filter="url(#glow)" />
+
+    <!-- Outer Wings -->
+    <!-- Left Wing -->
+    <g fill="#e2e8f0" opacity="0.75" filter="url(#glow)">
+      <path d="M -80,-30 C -180,-140 -320,-110 -380,-20 C -290,-30 -180,10 -80,40 Z" />
+      <path d="M -75,0 C -160,-90 -280,-70 -340,10 C -260,0 -160,30 -75,60 Z" />
+      <path d="M -70,30 C -140,-50 -240,-30 -290,40 C -220,30 -140,50 -70,80 Z" />
+    </g>
+
+    <!-- Right Wing -->
+    <g fill="#e2e8f0" opacity="0.75" filter="url(#glow)">
+      <path d="M 80,-30 C 180,-140 320,-110 380,-20 C 290,-30 180,10 80,40 Z" />
+      <path d="M 75,0 C 160,-90 280,-70 340,10 C 260,0 160,30 75,60 Z" />
+      <path d="M 70,30 C 140,-50 240,-30 290,40 C 220,30 140,50 70,80 Z" />
+    </g>
+
+    <!-- Central Crescent Moon & Star -->
+    <path d="M 0,-140 A 110 110 0 1 0 90,30 A 90 90 0 1 1 0,-140 Z" fill="#ffffff" opacity="0.9" filter="url(#glow)" />
+    <polygon points="35,-50 48,-10 90,-10 56,15 68,55 35,30 2,55 14,15 -20,-10 22,-10" fill="#ffffff" opacity="0.9" filter="url(#glow)" />
+
+    <!-- Central Motorcycle Silhouette inside circle -->
+    <g transform="translate(0, -10) scale(0.85)" opacity="0.85">
+      <circle cx="-35" cy="20" r="22" stroke="#ffffff" stroke-width="4" fill="none" />
+      <circle cx="35" cy="20" r="22" stroke="#ffffff" stroke-width="4" fill="none" />
+      <path d="M-35,20 L-10,-15 L15,-15 L35,20 L10,5 L-20,5 Z" fill="#ffffff" />
+      <circle cx="0" cy="-25" r="8" fill="#ffffff" />
+    </g>
+
+    <!-- Main Emblem Banner Text -->
+    <text x="0" y="120" font-family="'Bebas Neue', 'Arial Black', sans-serif" font-size="82" font-weight="900" fill="#ffffff" text-anchor="middle" letter-spacing="6" filter="url(#glow)">AYYILDIZ</text>
+    <text x="0" y="148" font-family="sans-serif" font-size="16" font-weight="bold" fill="#cbd5e1" text-anchor="middle" letter-spacing="8" opacity="0.8">- 2016 -</text>
+    
+    <!-- Ribbon Box for MOTOR KULÜBÜ -->
+    <rect x="-180" y="165" width="360" height="42" rx="4" fill="#09090b" stroke="#ffffff" stroke-width="2" opacity="0.9" />
+    <text x="0" y="194" font-family="'Bebas Neue', 'Arial Black', sans-serif" font-size="32" font-weight="bold" fill="#ffffff" text-anchor="middle" letter-spacing="4">MOTOR KULÜBÜ</text>
+  </g>
+
+  <!-- 6. Ground & Wet Asphalt Surface -->
+  <rect x="0" y="750" width="1920" height="330" fill="url(#groundReflect)" />
+  <line x1="0" y1="750" x2="1920" y2="750" stroke="#27272a" stroke-width="3" />
+
+  <!-- Floor Light Reflections -->
+  <ellipse cx="960" cy="820" rx="400" ry="40" fill="#ffffff" opacity="0.06" filter="url(#softGlow)" />
+  <ellipse cx="960" cy="950" rx="600" ry="60" fill="#ffffff" opacity="0.03" filter="url(#softGlow)" />
+
+  <!-- 7. Parked Cruiser Motorcycle (Right Side) -->
+  <g transform="translate(1600, 680)" opacity="0.75">
+    <!-- Wheels -->
+    <circle cx="-100" cy="110" r="50" stroke="#333338" stroke-width="12" fill="#09090b" />
+    <circle cx="100" cy="110" r="55" stroke="#333338" stroke-width="14" fill="#09090b" />
+    <!-- Engine / Frame -->
+    <path d="M-90,100 L-30,40 L40,40 L90,100 L20,110 L-60,110 Z" fill="#18181b" stroke="#52525b" stroke-width="2" />
+    <!-- Exhaust pipe -->
+    <path d="M-20,115 L120,115" stroke="#a1a1aa" stroke-width="8" stroke-linecap="round" />
+    <!-- Tail Light & License Plate -->
+    <rect x="110" y="60" width="16" height="12" fill="#ef4444" filter="url(#glow)" />
+    <rect x="100" y="75" width="55" height="28" fill="#18181b" stroke="#3f3f46" stroke-width="1" />
+    <text x="127" y="93" font-family="sans-serif" font-size="7" font-weight="bold" fill="#ffffff" text-anchor="middle">AYYILDIZ</text>
+  </g>
+
+  <!-- 8. FOREGROUND: 7 CLUB MEMBERS IN BLACK T-SHIRTS SEEN FROM BEHIND -->
+  <g transform="translate(0, 0)">
+    <!-- Member 1 (Far Left - Male, glasses/beard, dark hair, sleeves rolled) -->
+    <g transform="translate(480, 480)">
+      <!-- Head & Hair -->
+      <path d="M 40,80 Q 40,30 65,30 Q 90,30 90,80 Z" fill="#1c1917" />
+      <path d="M 40,65 Q 35,75 35,85" stroke="#292524" stroke-width="8" stroke-linecap="round" /> <!-- Beard profile -->
+      <!-- Glasses arm -->
+      <line x1="42" y1="62" x2="55" y2="60" stroke="#a1a1aa" stroke-width="2" />
+      <!-- Body / T-Shirt -->
+      <path d="M 25,120 Q 65,100 105,120 L 115,280 L 15,280 Z" fill="url(#shirtGrad)" />
+      <!-- Rolled Sleeve Arms -->
+      <path d="M 15,125 Q 0,160 5,220 L 25,220 L 30,140 Z" fill="#d6d3d1" />
+      <path d="M 115,125 Q 130,160 125,220 L 105,220 L 100,140 Z" fill="#d6d3d1" />
+      <!-- Pants -->
+      <path d="M 20,280 L 58,480 L 110,480 L 110,280 Z" fill="#18181b" />
+      <!-- Back T-Shirt Logo -->
+      <use href="#shirtLogo" x="65" y="170" transform="scale(1.3)" />
+    </g>
+
+    <!-- Member 2 (Female, long hair, making heart gesture above head) -->
+    <g transform="translate(610, 460)">
+      <!-- Long Dark Hair -->
+      <path d="M 35,90 Q 60,35 85,90 Q 95,140 85,180 Q 60,190 35,180 Q 25,140 35,90 Z" fill="#0c0a09" />
+      <!-- Heart gesture arms raised up -->
+      <path d="M 25,140 Q -10,80 30,30 Q 55,20 60,40" stroke="#f5d0fe" stroke-width="16" stroke-linecap="round" fill="none" />
+      <path d="M 95,140 Q 130,80 90,30 Q 65,20 60,40" stroke="#f5d0fe" stroke-width="16" stroke-linecap="round" fill="none" />
+      <!-- Body / T-Shirt -->
+      <path d="M 30,140 Q 60,130 90,140 L 98,280 L 22,280 Z" fill="url(#shirtGrad)" />
+      <!-- Pants -->
+      <path d="M 25,280 L 50,490 L 95,490 L 95,280 Z" fill="#111113" />
+      <!-- Back T-Shirt Logo -->
+      <use href="#shirtLogo" x="60" y="195" transform="scale(1.2)" />
+    </g>
+
+    <!-- Member 3 (Broad Male, arms at sides) -->
+    <g transform="translate(740, 480)">
+      <!-- Short Hair Head -->
+      <path d="M 45,75 Q 70,35 95,75 L 95,95 L 45,95 Z" fill="#1c1917" />
+      <!-- Body / T-Shirt -->
+      <path d="M 10,110 Q 70,95 130,110 L 140,280 L 0,280 Z" fill="url(#shirtGrad)" />
+      <!-- Arms -->
+      <path d="M 0,115 Q -15,180 -10,240 L 10,240 L 18,135 Z" fill="#e7e5e4" />
+      <path d="M 140,115 Q 155,180 150,240 L 130,240 L 122,135 Z" fill="#e7e5e4" />
+      <!-- Pants -->
+      <path d="M 10,280 L 50,480 L 130,480 L 130,280 Z" fill="#18181b" />
+      <!-- Back T-Shirt Logo -->
+      <use href="#shirtLogo" x="70" y="170" transform="scale(1.4)" />
+    </g>
+
+    <!-- Member 4 (Center Male, posture straight, light jeans) -->
+    <g transform="translate(890, 470)">
+      <!-- Head -->
+      <path d="M 40,70 Q 65,30 90,70 L 90,90 L 40,90 Z" fill="#292524" />
+      <!-- Body / T-Shirt -->
+      <path d="M 15,110 Q 65,95 115,110 L 122,270 L 8,270 Z" fill="url(#shirtGrad)" />
+      <!-- Arms -->
+      <path d="M 8,115 L -5,220 L 12,220 L 22,130 Z" fill="#f5d0fe" opacity="0.9" />
+      <path d="M 122,115 L 135,220 L 118,220 L 108,130 Z" fill="#f5d0fe" opacity="0.9" />
+      <!-- Light Blue Jeans -->
+      <path d="M 12,270 L 40,490 L 110,490 L 118,270 Z" fill="#334155" />
+      <!-- Back T-Shirt Logo -->
+      <use href="#shirtLogo" x="65" y="165" transform="scale(1.35)" />
+    </g>
+
+    <!-- Member 5 (Male wearing Beanie, hands behind back) -->
+    <g transform="translate(1030, 470)">
+      <!-- Beanie Hat -->
+      <path d="M 38,75 Q 65,25 92,75 Q 92,90 38,90 Z" fill="#09090b" stroke="#27272a" stroke-width="2" />
+      <!-- Body / T-Shirt -->
+      <path d="M 15,110 Q 65,95 115,110 L 122,280 L 8,280 Z" fill="url(#shirtGrad)" />
+      <!-- Arms folded behind back -->
+      <path d="M 12,115 Q -2,170 30,200 L 45,200 Z" fill="#18181b" />
+      <path d="M 118,115 Q 132,170 100,200 L 85,200 Z" fill="#18181b" />
+      <!-- Hands clasped behind back -->
+      <ellipse cx="65" cy="205" rx="14" ry="10" fill="#d6d3d1" />
+      <!-- Pants -->
+      <path d="M 12,280 L 42,490 L 110,490 L 118,280 Z" fill="#18181b" />
+      <!-- Back T-Shirt Logo -->
+      <use href="#shirtLogo" x="65" y="165" transform="scale(1.35)" />
+    </g>
+
+    <!-- Member 6 (Male, light jeans, standing relaxed) -->
+    <g transform="translate(1170, 475)">
+      <!-- Head -->
+      <path d="M 40,70 Q 65,30 90,70 L 90,90 L 40,90 Z" fill="#1c1917" />
+      <!-- Body / T-Shirt -->
+      <path d="M 15,110 Q 65,95 115,110 L 122,275 L 8,275 Z" fill="url(#shirtGrad)" />
+      <!-- Arms -->
+      <path d="M 8,115 L -5,225 L 12,225 L 22,130 Z" fill="#e7e5e4" />
+      <path d="M 122,115 L 135,225 L 118,225 L 108,130 Z" fill="#e7e5e4" />
+      <!-- Light Blue Jeans -->
+      <path d="M 12,275 L 38,485 L 110,485 L 118,275 Z" fill="#475569" />
+      <!-- Back T-Shirt Logo -->
+      <use href="#shirtLogo" x="65" y="165" transform="scale(1.3)" />
+    </g>
+
+    <!-- Member 7 (Far Right Male, bearded/shaved head, sturdy build) -->
+    <g transform="translate(1300, 480)">
+      <!-- Head & Beard -->
+      <path d="M 40,75 Q 65,35 90,75 Q 95,85 90,95 Q 65,100 40,95 Z" fill="#1c1917" />
+      <!-- Body / T-Shirt -->
+      <path d="M 10,110 Q 65,95 120,110 L 128,280 L 2,280 Z" fill="url(#shirtGrad)" />
+      <!-- Arms -->
+      <path d="M 2,115 L -10,225 L 8,225 L 18,130 Z" fill="#d6d3d1" />
+      <path d="M 120,115 L 132,225 L 114,225 L 104,130 Z" fill="#d6d3d1" />
+      <!-- Dark Jeans -->
+      <path d="M 5,280 L 35,480 L 115,480 L 125,280 Z" fill="#0f172a" />
+      <!-- Back T-Shirt Logo -->
+      <use href="#shirtLogo" x="65" y="170" transform="scale(1.35)" />
+    </g>
+  </g>
+
+  <!-- 9. Ambient Vignette Overlay -->
+  <rect width="1920" height="1080" fill="none" stroke="#000000" stroke-width="40" opacity="0.6" />
+</svg>

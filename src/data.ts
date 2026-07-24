@@ -3,15 +3,28 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Event, Route, BlogPost, ClubRule, HandSignal, MembershipApplication } from './types';
+import { Event, Route, BlogPost, ClubRule, HandSignal, MembershipApplication, GalleryItem } from './types';
+
+import regeneratedImg1 from './assets/images/regenerated_image_1784318617821.jpg';
+import regeneratedImg2 from './assets/images/regenerated_image_1784318618652.jpg';
+import regeneratedImg3 from './assets/images/regenerated_image_1784318619634.jpg';
+import regeneratedImg4 from './assets/images/regenerated_image_1784318620509.jpg';
+import regeneratedImg5 from './assets/images/regenerated_image_1784318621312.jpg';
+import regeneratedImg6 from './assets/images/regenerated_image_1784318621640.jpg';
 
 // Let's reference our custom generated images
 export const IMAGES = {
-  heroBg: '/images/aymc_cortege_bg.jpg',
+  heroBg: '/images/aymc_club_members_bg.svg',
   riderBack: '/images/aymc_rider_back_1783386132808.jpg',
   coastalTour: '/images/aymc_coastal_tour_1783386147711.jpg',
   campingEvent: '/images/aymc_camping_event_1783386160862.jpg',
   logo: '/images/aymc_logo_final.jpg',
+  picnic: regeneratedImg1,
+  sausages: regeneratedImg2,
+  motorcycleBenelli: regeneratedImg3,
+  helmetsTable: regeneratedImg4,
+  ridingGroup: regeneratedImg5,
+  cortegeCloseUp: regeneratedImg6,
 };
 
 export const DEFAULT_EVENTS: Event[] = [
@@ -150,5 +163,98 @@ export const INITIAL_APPLICATIONS: MembershipApplication[] = [
     status: 'approved',
     kvkkApproved: true,
     date: '2026-07-01'
+  }
+];
+
+export const DEFAULT_GALLERY_ITEMS: GalleryItem[] = [
+  {
+    id: 'gal-instagram-reel',
+    url: 'https://www.instagram.com/reel/DZGnwZQopr5/',
+    category: 'Videolar',
+    description: 'Ayyıldız Motosiklet Kulübü Instagram Reels Paylaşımı',
+    date: '2026-07-18',
+    type: 'video',
+    uploadedBy: 'Kurtuluş Düzlü'
+  },
+  {
+    id: 'gal-4',
+    url: IMAGES.picnic,
+    category: 'Fotoğraflar',
+    description: 'Sürüş Mola Noktasında Ateş Başında Sucuk Keyfimiz',
+    date: '2026-07-18',
+    type: 'image',
+    uploadedBy: 'Kurtuluş Düzlü'
+  },
+  {
+    id: 'gal-5',
+    url: IMAGES.sausages,
+    category: 'Videolar',
+    description: 'Köz Ateşinde Pişen Lezzetli Sucuklarımız',
+    date: '2026-07-18',
+    type: 'image',
+    uploadedBy: 'Kurtuluş Düzlü'
+  },
+  {
+    id: 'gal-6',
+    url: IMAGES.motorcycleBenelli,
+    category: 'Fotoğraflar',
+    description: 'Zirve Sürüşü - Muhteşem Manzara Karşısında Yol Arkadaşım',
+    date: '2026-07-18',
+    type: 'image',
+    uploadedBy: 'Melek Doğanay'
+  },
+  {
+    id: 'gal-7',
+    url: IMAGES.helmetsTable,
+    category: 'Fotoğraflar',
+    description: 'Masa Maçı Öncesi Kasklarımızın Görkemli Dizilimi',
+    date: '2026-07-18',
+    type: 'image',
+    uploadedBy: 'Kurtuluş Düzlü'
+  },
+  {
+    id: 'gal-8',
+    url: IMAGES.ridingGroup,
+    category: 'Fotoğraflar',
+    description: 'Kardeşlikle Çıkılan Her Yolculuk Bir Serüvendir',
+    date: '2026-07-18',
+    type: 'image',
+    uploadedBy: 'Kurt'
+  },
+  {
+    id: 'gal-9',
+    url: IMAGES.cortegeCloseUp,
+    category: 'Videolar',
+    description: 'Kulüp Sürüş Kortejimiz - Yollarda Ayyıldız Ruhu!',
+    date: '2026-07-18',
+    type: 'image',
+    uploadedBy: 'Kurtuluş Düzlü'
+  },
+  {
+    id: 'gal-1',
+    url: IMAGES.heroBg,
+    category: 'Sürüşler',
+    description: 'Büyük Taarruz Zafer Sürüşü Kortejimiz',
+    date: '2026-08-30',
+    type: 'image',
+    uploadedBy: 'Yönetici'
+  },
+  {
+    id: 'gal-2',
+    url: IMAGES.coastalTour,
+    category: 'Sürüşler',
+    description: 'Şile - Ağva Sahil ve Orman Sürüşü Kahvaltı Noktası',
+    date: '2026-07-15',
+    type: 'image',
+    uploadedBy: 'Alperen Kaya'
+  },
+  {
+    id: 'gal-3',
+    url: IMAGES.campingEvent,
+    category: 'Sürüşler',
+    description: 'Abant Doğa Sürüşü ve Çadır Kampı Etkinliği',
+    date: '2026-08-01',
+    type: 'image',
+    uploadedBy: 'Asena Yılmaz'
   }
 ];

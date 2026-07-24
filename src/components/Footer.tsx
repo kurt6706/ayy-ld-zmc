@@ -66,6 +66,12 @@ export default function Footer({ setActivePage }: FooterProps) {
               <button onClick={() => handleLinkClick('news')} className="hover:text-brand transition-colors text-left">Haberler & Blog</button>
             </li>
             <li>
+              <button onClick={() => handleLinkClick('gallery')} className="hover:text-brand transition-colors text-left">Galeri</button>
+            </li>
+            <li>
+              <button onClick={() => handleLinkClick('voice')} className="hover:text-brand transition-colors text-left">Sesli Telsiz</button>
+            </li>
+            <li>
               <button onClick={() => handleLinkClick('contact')} className="hover:text-brand transition-colors text-left">İletişim</button>
             </li>
             <li>

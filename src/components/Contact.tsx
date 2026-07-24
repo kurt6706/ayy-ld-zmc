@@ -5,6 +5,8 @@
 
 import React, { useState } from 'react';
 import { Mail, Phone, MapPin, Send, MessageCircle, HelpCircle, Check, ShieldAlert } from 'lucide-react';
+import { collection, getDocs, query, where, setDoc, doc } from 'firebase/firestore';
+import { db } from '../firebase';
 
 export default function Contact() {
   const [name, setName] = useState('');
@@ -12,25 +14,74 @@ export default function Contact() {
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   const [success, setSuccess] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !email || !message) return;
+    setLoading(true);
 
-    // Open user's email client
-    const mailtoLink = `mailto:kduzlu@gmail.com?subject=${encodeURIComponent(subject || 'İletişim Formu Mesajı')}&body=${encodeURIComponent(`Gönderen: ${name}\nE-posta: ${email}\n\nMesaj:\n${message}`)}`;
-    window.location.href = mailtoLink;
+    try {
+      // 1. Find receiver admin id
+      let receiverId = 'admin-1'; // Default seeded admin ID for Kurtuluş Düzlü
+      
+      const usersRef = collection(db, 'users');
+      const q = query(usersRef, where('email', '==', 'kduzlu@gmail.com'));
+      const querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
+        receiverId = querySnapshot.docs[0].id;
+      } else {
+        // Fallback to username kurt
+        const qKurt = query(usersRef, where('username', '==', 'kurt'));
+        const kurtSnap = await getDocs(qKurt);
+        if (!kurtSnap.empty) {
+          receiverId = kurtSnap.docs[0].id;
+        }
+      }
 
-    setSuccess(true);
-    setName('');
-    setEmail('');
-    setSubject('');
-    setMessage('');
-    setTimeout(() => setSuccess(false), 5000);
+      // 2. Generate a unique senderId for the guest based on email
+      const cleanedEmail = email.trim().toLowerCase();
+      const guestSenderId = `guest-${cleanedEmail.replace(/[^a-zA-Z0-9]/g, '-')}`;
+
+      // 3. Save direct message to Firestore
+      const msgId = `dm-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+      await setDoc(doc(db, 'directMessages', msgId), {
+        id: msgId,
+        senderId: guestSenderId,
+        senderName: name.trim(),
+        senderEmail: cleanedEmail,
+        receiverId: receiverId,
+        text: `Konu: ${subject.trim() || 'İletişim Formu Mesajı'}\nE-posta: ${cleanedEmail}\n\nMesaj:\n${message.trim()}`,
+        timestamp: Date.now(),
+        read: false
+      });
+
+      setSuccess(true);
+      setName('');
+      setEmail('');
+      setSubject('');
+      setMessage('');
+      setTimeout(() => setSuccess(false), 5000);
+    } catch (err) {
+      console.error("Mesaj gönderilemedi:", err);
+      // Fallback to mailto link if Firestore write fails
+      const mailtoLink = `mailto:kduzlu@gmail.com?subject=${encodeURIComponent(subject || 'İletişim Formu Mesajı')}&body=${encodeURIComponent(`Gönderen: ${name}\nE-posta: ${email}\n\nMesaj:\n${message}`)}`;
+      window.location.href = mailtoLink;
+      
+      setSuccess(true);
+      setName('');
+      setEmail('');
+      setSubject('');
+      setMessage('');
+      setTimeout(() => setSuccess(false), 5000);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div id="contact-page" className="bg-[#050505] text-white py-24 px-4 sm:px-6 lg:px-8">
+    <div id="contact-page" className="bg-transparent text-white py-24 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
         
         {/* Page Header */}
@@ -195,10 +246,11 @@ export default function Contact() {
               <div className="text-right">
                 <button
                   type="submit"
-                  className="flex items-center space-x-2 px-6 py-3.5 bg-brand text-white text-xs font-sans font-bold tracking-wider uppercase rounded-sm hover:bg-brand-dark transition-colors cursor-pointer ml-auto"
+                  disabled={loading}
+                  className="flex items-center space-x-2 px-6 py-3.5 bg-brand text-white text-xs font-sans font-bold tracking-wider uppercase rounded-sm hover:bg-brand-dark transition-colors cursor-pointer ml-auto disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Send className="w-3.5 h-3.5" />
-                  <span>MESAJI GÖNDER</span>
+                  <span>{loading ? 'GÖNDERİLİYOR...' : 'MESAJI GÖNDER'}</span>
                 </button>
               </div>
             </form>

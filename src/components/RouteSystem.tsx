@@ -24,14 +24,14 @@ export default function RouteSystem({ routes }: RouteSystemProps) {
 
   if (!selectedRoute) {
     return (
-      <div className="bg-[#050505] text-white py-24 text-center">
+      <div className="bg-transparent text-white py-24 text-center">
         <p className="font-sans">Lütfen rota ekleyin.</p>
       </div>
     );
   }
 
   return (
-    <div id="routes-page" className="bg-[#050505] text-white py-24 px-4 sm:px-6 lg:px-8">
+    <div id="routes-page" className="bg-transparent text-white py-24 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
         
         {/* Page Header */}

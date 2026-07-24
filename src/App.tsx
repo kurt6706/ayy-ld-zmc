@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { MessageSquare, RadioTower, X } from 'lucide-react';
+import { MessageSquare, RadioTower, X, Lock } from 'lucide-react';
 
 // Import all sub-components
 import Navbar from './components/Navbar';
@@ -17,10 +17,18 @@ import Blog from './components/Blog';
 import WorkspacePanel from './components/WorkspacePanel';
 import Contact from './components/Contact';
 import AdminPanel from './components/AdminPanel';
+import VoiceChannels from './components/VoiceChannels';
+import PromoVideo from './components/PromoVideo';
 import Footer from './components/Footer';
+import Gallery from './components/Gallery';
 import Login from './components/Login';
 import Chat from './components/Chat';
 import VoiceRoom from './components/VoiceRoom';
+import MessagesPanel from './components/MessagesPanel';
+import Profile from './components/Profile';
+import AISupportWidget from './components/AISupportWidget';
+import MeetingRoom from './components/MeetingRoom';
+import { IMAGES } from './data';
 
 // Firebase operations
 import { 
@@ -32,11 +40,13 @@ import {
   subscribeUserPosts, 
   subscribeAnnouncements, 
   addOrUpdateUser, 
+  deleteUserDoc,
   addOrUpdateEvent, 
   addOrUpdateRoute, 
-  addOrUpdateBlogPost
+  addOrUpdateBlogPost,
+  deleteBlogPostDoc
 } from './lib/firebaseService';
-import { subscribeAuthState, logoutUser } from './auth';
+import { subscribeAuthState, logoutUser, loginAnonymously } from './auth';
 
 export default function App() {
   const [activePage, setActivePage] = useState<string>('home');
@@ -80,10 +90,58 @@ export default function App() {
 
   // Subscriptions setup
   useEffect(() => {
-    // 1. Seed default collections if empty
-    bootstrapDatabaseIfEmpty();
+    // Keep track of firebase auth state for Chat and automatically sign in anonymously as fallback
+    const unsubAuth = subscribeAuthState(async (user) => {
+      if (user) {
+        setChatUser(user);
+      } else {
+        try {
+          const guestUser = await loginAnonymously();
+          if (guestUser) {
+            setChatUser(guestUser);
+            if ((guestUser as any).uid_mocked) {
+              setMemberUser({
+                id: guestUser.uid,
+                name: 'Konuk',
+                surname: 'Sürücü',
+                username: 'konuk',
+                role: 'member',
+                status: 'approved',
+                statusText: 'Misafir',
+                profile: {},
+                privacy: {}
+              });
+            }
+          }
+        } catch (e) {
+          console.warn("Auto anonymous sign-in failed:", e);
+        }
+      }
+    });
 
-    // 2. Real-time Firestore subscriptions
+    return () => {
+      unsubAuth();
+    };
+  }, []);
+
+  // Support hash change routing for private messages or links
+  useEffect(() => {
+    const handleHashChange = () => {
+      if (window.location.hash === '#/messages') {
+        setActivePage('messages');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    handleHashChange();
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  // Real-time Firestore subscriptions (runs on mount so users see content immediately)
+  useEffect(() => {
+    // Seed default collections if empty (errors are caught and ignored)
+    bootstrapDatabaseIfEmpty().catch(err => console.warn("Database boot warning:", err));
+
     const unsubUsers = subscribeUsers((loadedUsers) => {
       setUsers(loadedUsers);
     });
@@ -108,11 +166,6 @@ export default function App() {
       setAnnouncements(loadedAnnouncements);
     });
 
-    // 3. Keep track of firebase auth state for Chat
-    const unsubAuth = subscribeAuthState((user) => {
-      setChatUser(user);
-    });
-
     return () => {
       unsubUsers();
       unsubEvents();
@@ -120,9 +173,95 @@ export default function App() {
       unsubBlog();
       unsubUserPosts();
       unsubAnnouncements();
-      unsubAuth();
     };
   }, []);
+
+  // Synchronize Google / Firebase Auth state with memberUser details
+  useEffect(() => {
+    if (chatUser && !chatUser.isAnonymous && users.length > 0) {
+      const found = users.find(u => 
+        (u.googleId && u.googleId === chatUser.uid) || 
+        (chatUser.email && u.email && u.email === chatUser.email)
+      );
+      if (found) {
+        if (found.id !== chatUser.uid) {
+          // Migrate user document ID to match their Firebase Auth UID
+          const migratedUser = {
+            ...found,
+            id: chatUser.uid,
+            googleId: chatUser.uid,
+            email: chatUser.email || found.email || ''
+          };
+          
+          const migrate = async () => {
+            try {
+              await deleteUserDoc(found.id);
+              await addOrUpdateUser(migratedUser);
+              setMemberUser(migratedUser);
+            } catch (err) {
+              console.error("Failed to migrate user document ID:", err);
+            }
+          };
+          migrate();
+        } else {
+          setMemberUser(found);
+        }
+      } else {
+        // Auto-create a user document for a first-time Google sign-in
+        const isDefaultAdminEmail = chatUser.email === 'kduzlu@gmail.com' || chatUser.email === 'admin@ayyldzmotokulp.com';
+        const newUser = {
+          id: chatUser.uid,
+          name: chatUser.displayName ? chatUser.displayName.split(' ')[0] : 'İsimsiz',
+          surname: chatUser.displayName ? chatUser.displayName.split(' ').slice(1).join(' ') : '',
+          username: chatUser.email || chatUser.uid,
+          password: '',
+          role: (isDefaultAdminEmail ? 'admin' : 'member') as 'admin' | 'member',
+          status: 'approved',
+          googleId: chatUser.uid,
+          avatarUrl: chatUser.photoURL || '',
+          email: chatUser.email || '',
+          statusText: isDefaultAdminEmail ? 'Kurucu Üye / Töre Muhafızı' : 'Google Üyesi',
+          profile: {},
+          privacy: {}
+        };
+        const createGoogleUser = async () => {
+          try {
+            await addOrUpdateUser(newUser);
+            setMemberUser(newUser);
+          } catch (err) {
+            console.error("Failed to auto-create Google user document:", err);
+          }
+        };
+        createGoogleUser();
+      }
+    }
+  }, [chatUser, users]);
+
+  // Synchronize local username/password memberUser with current Firebase Auth UID (anonymous or otherwise)
+  useEffect(() => {
+    if (chatUser && memberUser && memberUser.id !== chatUser.uid) {
+      if (memberUser.status === 'approved') {
+        const migrateLocalSession = async () => {
+          try {
+            const migratedUser = {
+              ...memberUser,
+              id: chatUser.uid,
+            };
+            await addOrUpdateUser(migratedUser);
+            setMemberUser(migratedUser);
+            
+            // Clean up old document if it wasn't a seeded account like 'admin-1' or 'member-1'
+            if (memberUser.id !== 'admin' && memberUser.id !== 'admin-1' && !memberUser.id.startsWith('member-')) {
+              await deleteUserDoc(memberUser.id).catch(err => console.warn("Cleanup old user doc ignored:", err));
+            }
+          } catch (err) {
+            console.error("Failed to sync local user session to Firebase Auth UID:", err);
+          }
+        };
+        migrateLocalSession();
+      }
+    }
+  }, [chatUser, memberUser]);
 
   // Event & Blog Interactivity Handlers
   const handleToggleAttend = async (eventId: string) => {
@@ -189,12 +328,6 @@ export default function App() {
 
   const handleSetUsers = async (updatedUsers: any[]) => {
     setUsers(updatedUsers);
-    for (const u of updatedUsers) {
-      const existing = users.find(ex => ex.id === u.id);
-      if (!existing || JSON.stringify(existing) !== JSON.stringify(u)) {
-        await addOrUpdateUser(u);
-      }
-    }
   };
 
   const handleChatLoginSuccess = (user: any) => {
@@ -211,14 +344,23 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-gray-100 selection:bg-brand selection:text-white transition-colors duration-300 flex flex-col">
+    <div 
+      className="min-h-screen text-gray-100 selection:bg-brand selection:text-white transition-colors duration-300 flex flex-col relative"
+      style={{
+        backgroundImage: `linear-gradient(to bottom, rgba(5, 5, 8, 0.65), rgba(5, 5, 8, 0.82)), url(${IMAGES.heroBg})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center top',
+        backgroundRepeat: 'no-repeat',
+        backgroundAttachment: 'fixed',
+      }}
+    >
       {/* Navbar Header */}
       <Navbar 
         activePage={activePage} 
         setActivePage={setActivePage} 
         darkMode={darkMode} 
         setDarkMode={setDarkMode}
-        onOpenChat={() => setIsChatOpen(true)}
+        currentUser={memberUser}
       />
 
       {/* Main Page Area */}
@@ -226,10 +368,13 @@ export default function App() {
         
         {activePage === 'home' && (
           <>
+            <PromoVideo />
             <Hero onDiscoverClick={() => {
               setActivePage('about');
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }} />
+            <div className="bg-[#050505] border-b border-neutral-900/50 py-16">
+            </div>
             <About />
           </>
         )}
@@ -247,6 +392,13 @@ export default function App() {
             posts={blogPosts} 
             onAddComment={handleAddComment} 
             onLikePost={handleLikePost} 
+            currentUser={memberUser}
+            onUpdateBlogPost={handleAddBlogPost}
+            onDeleteBlogPost={async (id) => {
+              if (window.confirm('Bu haberi tamamen silmek istediğinize emin misiniz?')) {
+                await deleteBlogPostDoc(id);
+              }
+            }}
           />
         )}
 
@@ -254,8 +406,60 @@ export default function App() {
           <WorkspacePanel currentUser={memberUser} />
         )}
 
+        {activePage === 'gallery' && (
+          <Gallery currentUser={memberUser} setActivePage={setActivePage} />
+        )}
+
+        {activePage === 'voice' && (
+          <VoiceChannels />
+        )}
+
+        {activePage === 'meeting' && (
+          <MeetingRoom currentUser={memberUser} />
+        )}
+
         {activePage === 'contact' && (
           <Contact />
+        )}
+
+        {activePage === 'messages' && (
+          <MessagesPanel currentUser={memberUser} users={users} />
+        )}
+
+        {activePage === 'profile' && (
+          memberUser ? (
+            <Profile 
+              currentUser={memberUser} 
+              setCurrentUser={async (user) => {
+                if (user === null) {
+                  setMemberUser(null);
+                  setChatUser(null);
+                  await logoutUser();
+                  setActivePage('home');
+                } else {
+                  setMemberUser(user);
+                }
+              }}
+              users={users}
+              setUsers={handleSetUsers}
+              userPosts={userPosts}
+              setActivePage={setActivePage}
+            />
+          ) : (
+            <div className="max-w-md mx-auto py-24 px-4 animate-fade-in">
+              <div className="bg-neutral-950 border border-neutral-900 rounded-2xl p-8 text-center shadow-2xl">
+                <Lock className="w-12 h-12 text-brand mx-auto mb-4 animate-pulse" />
+                <h2 className="font-bebas text-2xl tracking-wider text-white mb-2">OTURUM AÇMANIZ GEREKLİ</h2>
+                <p className="text-neutral-400 text-xs font-sans tracking-wide mb-6 uppercase">Profilinizi ve özel mesajlarınızı görüntülemek için lütfen üye girişi yapın.</p>
+                <button
+                  onClick={() => setActivePage('admin')}
+                  className="w-full py-3 bg-brand hover:bg-brand-dark text-white rounded-lg text-xs font-bold tracking-widest uppercase transition-all shadow-lg shadow-brand/20"
+                >
+                  ÜYE GİRİŞİ YAP
+                </button>
+              </div>
+            </div>
+          )
         )}
 
         {activePage === 'admin' && (
@@ -266,7 +470,15 @@ export default function App() {
             users={users}
             setUsers={handleSetUsers}
             currentUser={memberUser}
-            setCurrentUser={setMemberUser}
+            setCurrentUser={async (user) => {
+              if (user === null) {
+                setMemberUser(null);
+                setChatUser(null);
+                await logoutUser();
+              } else {
+                setMemberUser(user);
+              }
+            }}
             userPosts={userPosts}
           />
         )}
@@ -276,96 +488,6 @@ export default function App() {
 
       {/* Footer */}
       <Footer setActivePage={setActivePage} />
-
-      {/* Utilities */}
-
-      {/* Floating Chat Trigger Button */}
-      {!isChatOpen && (
-        <button
-          onClick={() => {
-            setIsChatOpen(true);
-          }}
-          title="Canlı Grup Sohbeti"
-          className={`fixed bottom-6 ${isVoiceOpen ? 'right-4 sm:right-[410px]' : 'right-4 sm:right-6'} z-50 flex items-center justify-center w-14 h-14 bg-brand hover:bg-brand/90 text-white rounded-full shadow-[0_4px_24px_rgba(179,0,0,0.5)] transition-all duration-300 hover:scale-110 active:scale-95 group cursor-pointer`}
-        >
-          <span className="absolute right-16 bg-neutral-900 text-brand border border-brand/30 text-[10px] font-bold tracking-wider uppercase px-3 py-1.5 rounded-sm whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none shadow-xl">
-            Sohbete Katılın
-          </span>
-          <span className="absolute inset-0 rounded-full bg-brand/40 animate-ping opacity-75 pointer-events-none"></span>
-          <MessageSquare className="w-7 h-7 relative z-10" />
-        </button>
-      )}
-
-      {/* Floating TeamSpeak Voice Trigger Button */}
-      {!isVoiceOpen && (
-        <button
-          onClick={() => {
-            setIsVoiceOpen(true);
-          }}
-          title="AYMC Telsiz (Canlı Konuşma)"
-          className={`fixed bottom-6 ${isChatOpen ? 'right-4 sm:right-[410px]' : 'right-4 sm:right-24'} z-50 flex items-center justify-center w-14 h-14 bg-neutral-900 border border-brand/30 hover:border-brand text-brand hover:text-white rounded-full shadow-[0_4px_24px_rgba(0,0,0,0.6)] transition-all duration-300 hover:scale-110 active:scale-95 group cursor-pointer`}
-        >
-          <span className="absolute right-16 bg-neutral-900 text-brand border border-brand/30 text-[10px] font-bold tracking-wider uppercase px-3 py-1.5 rounded-sm whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none shadow-xl">
-            Canlı Telsiz
-          </span>
-          <span className="absolute inset-0 rounded-full bg-emerald-500/10 animate-pulse pointer-events-none"></span>
-          <RadioTower className="w-6 h-6 relative z-10" />
-        </button>
-      )}
-
-      {/* Floating Chat Window (Widget) */}
-      {isChatOpen && (
-        <div className="fixed bottom-6 right-6 z-[60] w-[calc(100vw-2rem)] sm:w-[380px] h-[70dvh] sm:h-[550px] max-h-[700px] bg-neutral-950 border border-neutral-800 rounded-xl shadow-2xl flex flex-col overflow-hidden animate-fade-in">
-          <div className="flex-1 overflow-hidden relative">
-            {chatUser ? (
-              <Chat 
-                currentUser={chatUser} 
-                onLogoutSuccess={handleChatLogout} 
-                onClose={() => setIsChatOpen(false)} 
-                onOpenVoice={() => setIsVoiceOpen(true)}
-              />
-            ) : (
-              <div className="h-full flex flex-col relative bg-[#050505]">
-                <div className="bg-[#090909] border-b border-neutral-900 p-4 flex justify-between items-center shrink-0">
-                   <h3 className="text-brand font-bebas tracking-wider text-xl">SOHBET GİRİŞİ</h3>
-                   <button onClick={() => setIsChatOpen(false)} className="text-neutral-500 hover:text-white transition-colors cursor-pointer">
-                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-                   </button>
-                </div>
-                <div className="flex-1 overflow-y-auto">
-                   <Login onLoginSuccess={handleChatLoginSuccess} isLoading={isLoading} setIsLoading={setIsLoading} />
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Floating TeamSpeak Voice Window (Widget) */}
-      {isVoiceOpen && (
-        <div className={`fixed bottom-6 ${isChatOpen ? 'right-4 sm:right-[410px]' : 'right-4 sm:right-6'} z-[60] w-[calc(100vw-2rem)] sm:w-[380px] h-[70dvh] sm:h-[550px] max-h-[700px] bg-neutral-950 border border-neutral-800 rounded-xl shadow-2xl flex flex-col overflow-hidden animate-fade-in`}>
-          <div className="flex-1 overflow-hidden relative">
-            {chatUser ? (
-              <VoiceRoom 
-                currentUser={chatUser} 
-                onClose={() => setIsVoiceOpen(false)} 
-              />
-            ) : (
-              <div className="h-full flex flex-col relative bg-[#050505]">
-                <div className="bg-[#090909] border-b border-neutral-900 p-4 flex justify-between items-center shrink-0">
-                   <h3 className="text-brand font-bebas tracking-wider text-xl">TELSİZ GİRİŞİ</h3>
-                   <button onClick={() => setIsVoiceOpen(false)} className="text-neutral-500 hover:text-white transition-colors cursor-pointer">
-                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-                   </button>
-                </div>
-                <div className="flex-1 overflow-y-auto">
-                   <Login onLoginSuccess={handleChatLoginSuccess} isLoading={isLoading} setIsLoading={setIsLoading} />
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Cookie Consent Banner */}
       {showCookieConsent && (
@@ -386,6 +508,9 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* 7/24 AI Club Support Chat Box */}
+      <AISupportWidget />
     </div>
   );
 }

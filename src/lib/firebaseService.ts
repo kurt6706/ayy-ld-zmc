@@ -16,8 +16,8 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { Event, Route, BlogPost, UserPost } from '../types';
-import { DEFAULT_EVENTS, DEFAULT_ROUTES, DEFAULT_BLOG } from '../data';
+import { Event, Route, BlogPost, UserPost, GalleryItem, Meeting } from '../types';
+import { DEFAULT_EVENTS, DEFAULT_ROUTES, DEFAULT_BLOG, DEFAULT_GALLERY_ITEMS } from '../data';
 
 // Connection Test
 export async function testFirestoreConnection() {
@@ -54,6 +54,21 @@ export async function bootstrapDatabaseIfEmpty() {
         privacy: {}
       };
       await setDoc(doc(db, 'users', defaultAdmin.id), defaultAdmin);
+
+      const testAdmin = {
+        id: 'admin-default',
+        name: 'Yönetici',
+        surname: 'Sistem',
+        username: 'admin',
+        password: 'password',
+        role: 'admin',
+        status: 'approved',
+        statusText: 'Sistem Yöneticisi',
+        avatarUrl: '',
+        profile: {},
+        privacy: {}
+      };
+      await setDoc(doc(db, 'users', testAdmin.id), testAdmin);
 
       const defaultMember1 = {
         id: 'member-1',
@@ -121,10 +136,93 @@ export async function bootstrapDatabaseIfEmpty() {
       });
       await batch.commit();
     }
+
+    // 5. Check & Bootstrap Gallery Items
+    const gallerySnap = await getDocs(collection(db, 'galleryItems'));
+    if (gallerySnap.empty) {
+      console.log("Seeding default gallery items...");
+      const batch = writeBatch(db);
+      DEFAULT_GALLERY_ITEMS.forEach((item) => {
+        const docRef = doc(db, 'galleryItems', item.id);
+        batch.set(docRef, item);
+      });
+      await batch.commit();
+    } else {
+      // Ensure specific default items are written if missing
+      const batch = writeBatch(db);
+      let needsCommit = false;
+      DEFAULT_GALLERY_ITEMS.forEach((item) => {
+        const exists = gallerySnap.docs.some(doc => doc.id === item.id);
+        if (!exists) {
+          const docRef = doc(db, 'galleryItems', item.id);
+          batch.set(docRef, item);
+          needsCommit = true;
+        }
+      });
+      if (needsCommit) {
+        console.log("Updating missing default gallery items in Firestore...");
+        await batch.commit();
+      }
+    }
   } catch (error) {
-    console.error("Error bootstrapping database:", error);
+    console.warn("Database bootstrapping warning (using default client-side data):", error);
   }
 }
+
+const DEFAULT_USERS = [
+  {
+    id: 'admin-1',
+    name: 'Kurtuluş',
+    surname: 'Düzlü',
+    username: 'kurt',
+    password: 'kurt123',
+    role: 'admin',
+    status: 'approved',
+    statusText: 'Kurucu Üye / Töre Muhafızı',
+    avatarUrl: '',
+    profile: {},
+    privacy: {}
+  },
+  {
+    id: 'admin-default',
+    name: 'Yönetici',
+    surname: 'Sistem',
+    username: 'admin',
+    password: 'password',
+    role: 'admin',
+    status: 'approved',
+    statusText: 'Sistem Yöneticisi',
+    avatarUrl: '',
+    profile: {},
+    privacy: {}
+  },
+  {
+    id: 'member-1',
+    name: 'Alperen',
+    surname: 'Kaya',
+    username: 'alperen',
+    password: '123',
+    role: 'member',
+    status: 'approved',
+    statusText: 'Yol Kaptanı',
+    avatarUrl: '',
+    profile: {},
+    privacy: {}
+  },
+  {
+    id: 'member-2',
+    name: 'Asena',
+    surname: 'Yılmaz',
+    username: 'asena',
+    password: '123',
+    role: 'member',
+    status: 'approved',
+    statusText: 'Halkla İlişkiler Sorumlusu',
+    avatarUrl: '',
+    profile: {},
+    privacy: {}
+  }
+];
 
 // Subscriptions for real-time Sync
 
@@ -134,9 +232,32 @@ export function subscribeUsers(onUpdate: (users: any[]) => void) {
     snapshot.forEach((doc) => {
       list.push({ ...doc.data(), id: doc.id });
     });
-    onUpdate(list);
+    
+    // Save to localStorage as a robust local backup
+    try {
+      if (list.length > 0) {
+        localStorage.setItem('aymc_users_backup', JSON.stringify(list));
+      }
+    } catch (e) {
+      console.warn("Failed to save users backup to localStorage:", e);
+    }
+
+    onUpdate(list.length > 0 ? list : DEFAULT_USERS);
   }, (error) => {
     handleFirestoreError(error, OperationType.LIST, 'users');
+    
+    // Fallback to localStorage backup if available
+    let localUsers: any[] = [];
+    try {
+      const stored = localStorage.getItem('aymc_users_backup');
+      if (stored) {
+        localUsers = JSON.parse(stored);
+      }
+    } catch (e) {
+      console.warn("Failed to read users backup from localStorage:", e);
+    }
+    
+    onUpdate(localUsers.length > 0 ? localUsers : DEFAULT_USERS);
   });
 }
 
@@ -149,6 +270,7 @@ export function subscribeEvents(onUpdate: (events: Event[]) => void) {
     onUpdate(list);
   }, (error) => {
     handleFirestoreError(error, OperationType.LIST, 'events');
+    onUpdate(DEFAULT_EVENTS);
   });
 }
 
@@ -161,6 +283,7 @@ export function subscribeRoutes(onUpdate: (routes: Route[]) => void) {
     onUpdate(list);
   }, (error) => {
     handleFirestoreError(error, OperationType.LIST, 'routes');
+    onUpdate(DEFAULT_ROUTES);
   });
 }
 
@@ -173,6 +296,7 @@ export function subscribeBlogPosts(onUpdate: (posts: BlogPost[]) => void) {
     onUpdate(list);
   }, (error) => {
     handleFirestoreError(error, OperationType.LIST, 'blogPosts');
+    onUpdate(DEFAULT_BLOG);
   });
 }
 
@@ -181,6 +305,21 @@ export function subscribeBlogPosts(onUpdate: (posts: BlogPost[]) => void) {
 // CRUD Operations with clean Error Wrapping
 
 export async function addOrUpdateUser(user: any) {
+  // Save to localStorage backup first so it is immediately available
+  try {
+    const stored = localStorage.getItem('aymc_users_backup');
+    let localUsers: any[] = stored ? JSON.parse(stored) : [...DEFAULT_USERS];
+    const index = localUsers.findIndex((x: any) => x.id === user.id);
+    if (index > -1) {
+      localUsers[index] = user;
+    } else {
+      localUsers.push(user);
+    }
+    localStorage.setItem('aymc_users_backup', JSON.stringify(localUsers));
+  } catch (e) {
+    console.warn("Failed to save user to localStorage backup:", e);
+  }
+
   try {
     await setDoc(doc(db, 'users', user.id), user);
   } catch (error) {
@@ -189,6 +328,18 @@ export async function addOrUpdateUser(user: any) {
 }
 
 export async function deleteUserDoc(userId: string) {
+  // Delete from localStorage backup first
+  try {
+    const stored = localStorage.getItem('aymc_users_backup');
+    if (stored) {
+      let localUsers = JSON.parse(stored);
+      localUsers = localUsers.filter((x: any) => x.id !== userId);
+      localStorage.setItem('aymc_users_backup', JSON.stringify(localUsers));
+    }
+  } catch (e) {
+    console.warn("Failed to delete user from localStorage backup:", e);
+  }
+
   try {
     await deleteDoc(doc(db, 'users', userId));
   } catch (error) {
@@ -257,6 +408,7 @@ export function subscribeUserPosts(onUpdate: (posts: UserPost[]) => void) {
     onUpdate(list);
   }, (error) => {
     handleFirestoreError(error, OperationType.LIST, 'userPosts');
+    onUpdate([]);
   });
 }
 
@@ -287,6 +439,7 @@ export function subscribeDirectMessages(onUpdate: (messages: any[]) => void) {
     onUpdate(list);
   }, (error) => {
     handleFirestoreError(error, OperationType.LIST, 'directMessages');
+    onUpdate([]);
   });
 }
 
@@ -333,6 +486,9 @@ export function subscribeAnnouncements(onUpdate: (announcements: any[]) => void)
     onUpdate(list);
   }, (error) => {
     handleFirestoreError(error, OperationType.LIST, 'announcements');
+    onUpdate([
+      { id: 'ann-1', title: 'Ayyıldız Moto Kulüp', content: 'Kulübümüzün resmi web sitesine hoş geldiniz. Sitemiz şu anda aktif olarak kullanılmaktadır.', date: '2026-07-17', important: true }
+    ]);
   });
 }
 
@@ -351,6 +507,125 @@ export async function deleteAnnouncementDoc(id: string) {
     handleFirestoreError(error, OperationType.DELETE, `announcements/${id}`);
   }
 }
+
+// Gallery subscriptions & operations
+export function subscribeGalleryItems(onUpdate: (items: GalleryItem[]) => void) {
+  return onSnapshot(collection(db, 'galleryItems'), (snapshot) => {
+    const list: GalleryItem[] = [];
+    snapshot.forEach((doc) => {
+      list.push({ ...(doc.data() as GalleryItem), id: doc.id });
+    });
+    // Sort descending by date (or created timestamp)
+    list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    
+    // Save to localStorage as a robust local backup
+    try {
+      if (list.length > 0) {
+        localStorage.setItem('aymc_gallery_backup', JSON.stringify(list));
+      }
+    } catch (e) {
+      console.warn("Failed to save gallery backup to localStorage:", e);
+    }
+    
+    onUpdate(list.length > 0 ? list : DEFAULT_GALLERY_ITEMS);
+  }, (error) => {
+    handleFirestoreError(error, OperationType.LIST, 'galleryItems');
+    
+    // Load from localStorage backup if available
+    let localItems: GalleryItem[] = [];
+    try {
+      const stored = localStorage.getItem('aymc_gallery_backup');
+      if (stored) {
+        localItems = JSON.parse(stored);
+      }
+    } catch (e) {
+      console.warn("Failed to read gallery backup from localStorage:", e);
+    }
+    
+    if (localItems && localItems.length > 0) {
+      onUpdate(localItems);
+    } else {
+      onUpdate(DEFAULT_GALLERY_ITEMS);
+    }
+  });
+}
+
+export async function addOrUpdateGalleryItem(item: GalleryItem) {
+  // Save to localStorage first so it's immediately available locally!
+  try {
+    const stored = localStorage.getItem('aymc_gallery_backup');
+    let localItems: GalleryItem[] = stored ? JSON.parse(stored) : [...DEFAULT_GALLERY_ITEMS];
+    const index = localItems.findIndex((x: GalleryItem) => x.id === item.id);
+    if (index > -1) {
+      localItems[index] = item;
+    } else {
+      localItems.unshift(item);
+    }
+    localStorage.setItem('aymc_gallery_backup', JSON.stringify(localItems));
+  } catch (e) {
+    console.warn("Failed to save item to localStorage gallery backup:", e);
+  }
+
+  try {
+    await setDoc(doc(db, 'galleryItems', item.id), item);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `galleryItems/${item.id}`);
+  }
+}
+
+export async function deleteGalleryItemDoc(id: string) {
+  // Delete from localStorage first!
+  try {
+    const stored = localStorage.getItem('aymc_gallery_backup');
+    if (stored) {
+      let localItems = JSON.parse(stored);
+      localItems = localItems.filter((x: GalleryItem) => x.id !== id);
+      localStorage.setItem('aymc_gallery_backup', JSON.stringify(localItems));
+    }
+  } catch (e) {
+    console.warn("Failed to delete item from localStorage gallery backup:", e);
+  }
+
+  try {
+    await deleteDoc(doc(db, 'galleryItems', id));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `galleryItems/${id}`);
+  }
+}
+
+// Meeting (Toplantı) subscriptions & operations
+export function subscribeMeetings(onUpdate: (meetings: Meeting[]) => void) {
+  return onSnapshot(collection(db, 'meetings'), (snapshot) => {
+    const list: Meeting[] = [];
+    snapshot.forEach((doc) => {
+      list.push({ ...(doc.data() as Meeting), id: doc.id });
+    });
+    // Sort descending by createdAt
+    list.sort((a, b) => b.createdAt - a.createdAt);
+    onUpdate(list);
+  }, (error) => {
+    handleFirestoreError(error, OperationType.LIST, 'meetings');
+    onUpdate([]);
+  });
+}
+
+export async function addOrUpdateMeeting(meeting: Meeting) {
+  try {
+    await setDoc(doc(db, 'meetings', meeting.id), meeting);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `meetings/${meeting.id}`);
+  }
+}
+
+export async function deleteMeetingDoc(id: string) {
+  try {
+    await deleteDoc(doc(db, 'meetings', id));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `meetings/${id}`);
+  }
+}
+
+
 
 
 

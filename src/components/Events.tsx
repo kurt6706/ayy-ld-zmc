@@ -4,16 +4,18 @@
  */
 
 import React, { useState } from 'react';
-import { Calendar, Clock, MapPin, Users, Navigation, Search, CheckCircle2 } from 'lucide-react';
+import { Calendar, Clock, MapPin, Users, Navigation, Search, CheckCircle2, Trash2 } from 'lucide-react';
 import { Event } from '../types';
+import { deleteEventDoc } from '../lib/firebaseService';
 
 interface EventsProps {
   events: Event[];
   onToggleAttend: (id: string) => void;
   userAttendingList: string[]; // List of event IDs the user is attending
+  currentUser?: any;
 }
 
-export default function Events({ events, onToggleAttend, userAttendingList }: EventsProps) {
+export default function Events({ events, onToggleAttend, userAttendingList, currentUser }: EventsProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState<'all' | 'upcoming' | 'past'>('all');
 
@@ -31,7 +33,7 @@ export default function Events({ events, onToggleAttend, userAttendingList }: Ev
   });
 
   return (
-    <div id="events-page" className="bg-[#050505] text-white py-24 px-4 sm:px-6 lg:px-8">
+    <div id="events-page" className="bg-transparent text-white py-24 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
         
         {/* Page Header */}
@@ -116,6 +118,27 @@ export default function Events({ events, onToggleAttend, userAttendingList }: Ev
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                       referrerPolicy="no-referrer"
                     />
+                    
+                    {/* Admin Delete Action */}
+                    {currentUser?.role === 'admin' && (
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          if (window.confirm(`"${evt.title}" etkinliğini silmek istediğinize emin misiniz?`)) {
+                            try {
+                              await deleteEventDoc(evt.id);
+                            } catch (err: any) {
+                              alert("Etkinlik silinemedi: " + err.message);
+                            }
+                          }
+                        }}
+                        title="Etkinliği Sil"
+                        className="absolute top-4 left-4 p-2 rounded bg-red-950/95 hover:bg-red-900 border border-red-800 text-red-300 hover:text-white transition-colors z-20 shadow-md cursor-pointer flex items-center justify-center"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+
                     {/* Status Badge */}
                     <div className="absolute top-4 right-4 z-10">
                       <span className={`px-2.5 py-1 text-[10px] font-sans font-bold tracking-wider uppercase rounded-sm ${

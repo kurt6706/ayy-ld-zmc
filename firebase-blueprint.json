@@ -150,6 +150,22 @@
         "isStatic": { "type": "boolean" }
       },
       "required": ["id", "name", "description", "icon"]
+    },
+    "meeting": {
+      "title": "Meeting",
+      "description": "Live and instant club meetings",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "reason": { "type": "string" },
+        "time": { "type": "string" },
+        "link": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "createdByName": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "completed"] }
+      },
+      "required": ["id", "title", "reason", "time", "link", "createdAt", "status"]
     }
   },
   "firestore": {
@@ -188,6 +204,10 @@
     "/voiceChannels/{channelId}": {
       "schema": "voiceChannel",
       "description": "Voice channels list"
+    },
+    "/meetings/{meetingId}": {
+      "schema": "meeting",
+      "description": "Live club meetings list"
     }
   }
 }

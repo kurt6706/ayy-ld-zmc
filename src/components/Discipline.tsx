@@ -73,7 +73,7 @@ ihlali durumunda Disiplin Komitesi kararı esastır.
   };
 
   return (
-    <div id="discipline-page" className="bg-[#050505] text-white py-24 px-4 sm:px-6 lg:px-8">
+    <div id="discipline-page" className="bg-transparent text-white py-24 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
         
         {/* Page Header */}

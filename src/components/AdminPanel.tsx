@@ -3,13 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
-import { Lock, Unlock, Eye, EyeOff, LayoutDashboard, Users, Calendar, Plus, RefreshCw, LogOut, Check, X, FileText, Map, Image, Edit3, Trash2, ArrowLeft, MessageSquare } from 'lucide-react';
-import { Event, Route, BlogPost, UserPost } from '../types';
+import React, { useState, useEffect, useRef } from 'react';
+import { Lock, Unlock, Eye, EyeOff, LayoutDashboard, Users, Calendar, Plus, RefreshCw, LogOut, Check, X, FileText, Map, Image, Edit3, Trash2, ArrowLeft, MessageSquare, Image as ImageIcon, UploadCloud, Play, Info } from 'lucide-react';
+import { Event, Route, BlogPost, UserPost, GalleryItem } from '../types';
 import { IMAGES } from '../data';
-import { addOrUpdateUserPost, deleteUserPostDoc, addOrUpdateUser } from '../lib/firebaseService';
-import { auth, googleAuthProvider, translateFirebaseError } from '../firebase';
-import { signInWithPopup } from 'firebase/auth';
+import { addOrUpdateUserPost, deleteUserPostDoc, addOrUpdateUser, deleteUserDoc, addOrUpdateGalleryItem } from '../lib/firebaseService';
+import { auth, googleAuthProvider, translateFirebaseError, storage } from '../firebase';
+import { signInWithPopup, signInAnonymously } from 'firebase/auth';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 
 interface AdminPanelProps {
   onAddEvent: (evt: Event) => void;
@@ -37,6 +38,84 @@ const PROFILE_FIELDS = [
   { key: 'phoneNumbers', label: 'Telefon Numaraları' },
 ];
 
+const resizeAvatar = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_SIZE = 250; // Keep avatars beautifully small and extremely lightweight
+        let width = img.width;
+        let height = img.height;
+        if (width > height) {
+          if (width > MAX_SIZE) {
+            height = Math.round((height * MAX_SIZE) / width);
+            width = MAX_SIZE;
+          }
+        } else {
+          if (height > MAX_SIZE) {
+            width = Math.round((width * MAX_SIZE) / height);
+            height = MAX_SIZE;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', 0.7));
+        } else {
+          resolve(e.target?.result as string);
+        }
+      };
+      img.onerror = () => reject(new Error('Resim yüklenirken hata oluştu.'));
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => reject(new Error('Dosya okunamadı.'));
+    reader.readAsDataURL(file);
+  });
+};
+
+const resizeGalleryImage = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new window.Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_SIZE = 1000; // Beautiful gallery dimensions & extremely lightweight
+        let width = img.width;
+        let height = img.height;
+        if (width > height) {
+          if (width > MAX_SIZE) {
+            height = Math.round((height * MAX_SIZE) / width);
+            width = MAX_SIZE;
+          }
+        } else {
+          if (height > MAX_SIZE) {
+            width = Math.round((width * MAX_SIZE) / height);
+            height = MAX_SIZE;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', 0.75));
+        } else {
+          resolve(e.target?.result as string);
+        }
+      };
+      img.onerror = () => reject(new Error('Resim yüklenirken hata oluştu.'));
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => reject(new Error('Dosya okunamadı.'));
+    reader.readAsDataURL(file);
+  });
+};
+
 export default function AdminPanel({
   onAddEvent,
   onAddRoute,
@@ -54,7 +133,21 @@ export default function AdminPanel({
   const [loginError, setLoginError] = useState('');
 
   // Active Admin Tab
-  const [activeTab, setActiveTab] = useState<'add-event' | 'add-blog' | 'add-route' | 'create-user' | 'list-users' | 'pending-users' | 'edit-user'>('list-users');
+  const [activeTab, setActiveTab] = useState<'add-event' | 'add-blog' | 'add-route' | 'create-user' | 'list-users' | 'pending-users' | 'edit-user' | 'upload-media'>('list-users');
+
+  // Media Upload States for Gallery
+  const [mediaUploadType, setMediaUploadType] = useState<'file' | 'instagram' | 'youtube'>('file');
+  const [instagramUrl, setInstagramUrl] = useState('');
+  const [youtubeUrl, setYoutubeUrl] = useState('');
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+  const [mediaUploadProgress, setMediaUploadProgress] = useState(0);
+  const [mediaUploadStatus, setMediaUploadStatus] = useState('Yükleniyor...');
+  const [mediaErrorMsg, setMediaErrorMsg] = useState('');
+  const [mediaSuccessMsg, setMediaSuccessMsg] = useState('');
+  const [selectedMediaFile, setSelectedMediaFile] = useState<File | null>(null);
+  const [mediaDescription, setMediaDescription] = useState('');
+  const mediaFileInputRef = useRef<HTMLInputElement>(null);
+  const MAX_FILE_SIZE = 300 * 1024 * 1024; // 300MB
 
   // Input states for Add Event
   const [evtTitle, setEvtTitle] = useState('');
@@ -77,6 +170,8 @@ export default function AdminPanel({
   const [blogContent, setBlogContent] = useState('');
   const [blogCategory, setBlogCategory] = useState<'Duyuru' | 'Sürüş Günlüğü' | 'Teknik Bilgi' | 'Sosyal Sorumluluk'>('Duyuru');
   const [blogTags, setBlogTags] = useState('');
+  const [blogImage, setBlogImage] = useState<string>('');
+  const [isCompressingBlogImage, setIsCompressingBlogImage] = useState<boolean>(false);
 
   // Input states for Add Route
   const [rtName, setRtName] = useState('');
@@ -160,14 +255,17 @@ export default function AdminPanel({
       const fUser = result.user;
       
       let foundUser = users.find(u => u.googleId === fUser.uid || u.email === fUser.email || u.username === fUser.email);
+      const isDefaultAdminEmail = fUser.email === 'kduzlu@gmail.com' || fUser.email === 'admin@ayyldzmotokulp.com';
       
       if (foundUser) {
-        if (!foundUser.googleId || !foundUser.avatarUrl || !foundUser.email) {
+        if (!foundUser.googleId || !foundUser.avatarUrl || !foundUser.email || (isDefaultAdminEmail && foundUser.role !== 'admin')) {
           const updated = {
             ...foundUser,
             googleId: fUser.uid,
             email: fUser.email || foundUser.email || '',
-            avatarUrl: fUser.photoURL || foundUser.avatarUrl || ''
+            avatarUrl: fUser.photoURL || foundUser.avatarUrl || '',
+            role: isDefaultAdminEmail ? 'admin' : foundUser.role,
+            statusText: isDefaultAdminEmail ? 'Kurucu Üye / Töre Muhafızı' : (foundUser.statusText || 'Google Üyesi')
           };
           await addOrUpdateUser(updated);
           foundUser = updated;
@@ -190,12 +288,12 @@ export default function AdminPanel({
           surname: fUser.displayName ? fUser.displayName.split(' ').slice(1).join(' ') : '',
           username: fUser.email || fUser.uid,
           password: '',
-          role: 'member',
+          role: isDefaultAdminEmail ? 'admin' : 'member',
           status: 'approved',
           googleId: fUser.uid,
           avatarUrl: fUser.photoURL || '',
           email: fUser.email || '',
-          statusText: 'Google Üyesi',
+          statusText: isDefaultAdminEmail ? 'Kurucu Üye / Töre Muhafızı' : 'Google Üyesi',
           profile: {},
           privacy: {}
         };
@@ -205,6 +303,197 @@ export default function AdminPanel({
     } catch (error: any) {
       console.error("Google login error:", error);
       setLoginError(translateFirebaseError(error));
+    }
+  };
+
+  const handleMediaFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      if (file.size > MAX_FILE_SIZE) {
+        setMediaErrorMsg('Dosya boyutu 300MB\'dan küçük olmalıdır.');
+        return;
+      }
+      setSelectedMediaFile(file);
+      setMediaErrorMsg('');
+      setMediaSuccessMsg('');
+    }
+  };
+
+  const handleMediaUpload = async () => {
+    if (currentUser?.role !== 'admin') {
+      setMediaErrorMsg('Yalnızca yöneticiler galeriye medya ekleyebilir.');
+      return;
+    }
+
+    if (mediaUploadType === 'youtube') {
+      if (!youtubeUrl) {
+        setMediaErrorMsg('Lütfen geçerli bir YouTube linki giriniz.');
+        return;
+      }
+      if (!youtubeUrl.includes('youtube.com') && !youtubeUrl.includes('youtu.be')) {
+        setMediaErrorMsg('Lütfen geçerli bir YouTube (youtube.com veya youtu.be) linki girdiğinizden emin olun.');
+        return;
+      }
+      setIsUploadingMedia(true);
+      setMediaErrorMsg('');
+      setMediaSuccessMsg('');
+      try {
+        const fileId = `gallery-yt-${Date.now()}`;
+        const newItem: GalleryItem = {
+          id: fileId,
+          url: youtubeUrl,
+          category: 'Videolar',
+          description: mediaDescription || 'YouTube Video Paylaşımı',
+          date: new Date().toISOString(),
+          type: 'video',
+          uploadedBy: currentUser?.displayName || currentUser?.name || 'Üye',
+          uploaderUid: currentUser?.id || currentUser?.uid || auth.currentUser?.uid || 'guest-user',
+        };
+
+        await addOrUpdateGalleryItem(newItem);
+        setMediaSuccessMsg('YouTube linki başarıyla eklendi ve galeride yayınlandı.');
+        setYoutubeUrl('');
+        setMediaDescription('');
+      } catch (error: any) {
+        console.error('YouTube link add error:', error);
+        setMediaErrorMsg(error.message || 'YouTube linki eklenirken bir hata oluştu.');
+      } finally {
+        setIsUploadingMedia(false);
+      }
+      return;
+    }
+
+    if (mediaUploadType === 'instagram') {
+      if (!instagramUrl) {
+        setMediaErrorMsg('Lütfen geçerli bir Instagram linki giriniz.');
+        return;
+      }
+      if (!instagramUrl.includes('instagram.com')) {
+        setMediaErrorMsg('Lütfen geçerli bir Instagram (instagram.com) linki girdiğinizden emin olun.');
+        return;
+      }
+      setIsUploadingMedia(true);
+      setMediaErrorMsg('');
+      setMediaSuccessMsg('');
+      try {
+        const fileId = `gallery-ig-${Date.now()}`;
+        const newItem: GalleryItem = {
+          id: fileId,
+          url: instagramUrl,
+          category: 'Videolar',
+          description: mediaDescription || 'Instagram Paylaşımı',
+          date: new Date().toISOString(),
+          type: 'video',
+          uploadedBy: currentUser?.displayName || currentUser?.name || 'Üye',
+          uploaderUid: currentUser?.id || currentUser?.uid || auth.currentUser?.uid || 'guest-user',
+        };
+
+        await addOrUpdateGalleryItem(newItem);
+        setMediaSuccessMsg('Instagram linki başarıyla eklendi ve galeride yayınlandı.');
+        setInstagramUrl('');
+        setMediaDescription('');
+      } catch (error: any) {
+        console.error('Instagram link add error:', error);
+        setMediaErrorMsg(error.message || 'Instagram linki eklenirken bir hata oluştu.');
+      } finally {
+        setIsUploadingMedia(false);
+      }
+      return;
+    }
+
+    if (!selectedMediaFile) return;
+
+    setIsUploadingMedia(true);
+    setMediaErrorMsg('');
+    setMediaSuccessMsg('');
+    setMediaUploadProgress(0);
+    setMediaUploadStatus('Yükleme başlatılıyor...');
+
+    const file = selectedMediaFile;
+    const fileType = file.type.startsWith('video/') || /\.(mp4|webm|ogg|mov|avi|mkv|flv|3gp|mpeg)$/i.test(file.name) ? 'video' : 'image';
+    const fileId = `gallery-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+    if (fileType === 'image') {
+      try {
+        setMediaUploadStatus('Görsel sıkıştırılıyor ve optimize ediliyor...');
+        setMediaUploadProgress(15);
+        
+        // Compress & resize image client-side for maximum reliability and ultra-fast upload in sandbox environment
+        const base64Data = await resizeGalleryImage(file);
+        setMediaUploadProgress(60);
+        setMediaUploadStatus('Galeride yayınlanıyor...');
+
+        const newItem: GalleryItem = {
+          id: fileId,
+          url: base64Data,
+          category: 'Fotoğraflar',
+          description: mediaDescription || file.name,
+          date: new Date().toISOString(),
+          type: 'image',
+          uploadedBy: currentUser?.displayName || currentUser?.name || 'Üye',
+          uploaderUid: currentUser?.id || currentUser?.uid || auth.currentUser?.uid || 'guest-user',
+        };
+
+        await addOrUpdateGalleryItem(newItem);
+        
+        setMediaUploadProgress(100);
+        setMediaSuccessMsg('Fotoğraf başarıyla yüklendi ve galeride yayınlandı.');
+        setSelectedMediaFile(null);
+        setMediaDescription('');
+        setMediaUploadProgress(0);
+      } catch (error: any) {
+        console.error('Image base64 upload error:', error);
+        setMediaErrorMsg(error.message || 'Görsel işlenirken veya yüklenirken bir hata oluştu.');
+      } finally {
+        setIsUploadingMedia(false);
+      }
+      return;
+    }
+
+    // Video Upload (Direct Base64 upload for files up to 20MB to completely bypass CORS/Sandbox blocks)
+    if (file.size > 20 * 1024 * 1024) {
+      setMediaErrorMsg('Video boyutu en fazla 20 MB olabilir. Lütfen daha küçük bir video dosyası seçin veya YouTube/Instagram linki ekleme özelliğini kullanın!');
+      setIsUploadingMedia(false);
+      return;
+    }
+
+    setMediaUploadStatus('Video okunuyor ve optimize ediliyor...');
+    setMediaUploadProgress(20);
+
+    try {
+      const base64Data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target?.result as string);
+        reader.onerror = () => reject(new Error('Video dosyası okunamadı.'));
+        reader.readAsDataURL(file);
+      });
+
+      setMediaUploadProgress(60);
+      setMediaUploadStatus('Galeride yayınlanıyor...');
+
+      const newItem: GalleryItem = {
+        id: fileId,
+        url: base64Data,
+        category: 'Videolar',
+        description: mediaDescription || file.name,
+        date: new Date().toISOString(),
+        type: 'video',
+        uploadedBy: currentUser?.displayName || currentUser?.name || 'Üye',
+        uploaderUid: currentUser?.id || currentUser?.uid || auth.currentUser?.uid || 'guest-user',
+      };
+
+      await addOrUpdateGalleryItem(newItem);
+      
+      setMediaUploadProgress(100);
+      setMediaSuccessMsg('Video başarıyla yüklendi ve galeride yayınlandı.');
+      setSelectedMediaFile(null);
+      setMediaDescription('');
+      setMediaUploadProgress(0);
+    } catch (error: any) {
+      console.error('Video base64 upload error:', error);
+      setMediaErrorMsg(error.message || 'Video işlenirken veya yüklenirken bir hata oluştu.');
+    } finally {
+      setIsUploadingMedia(false);
     }
   };
 
@@ -228,10 +517,15 @@ export default function AdminPanel({
       role: newUserRole,
       status: 'approved'
     };
-    if (setUsers && users) {
-      setUsers([...users, newUser]);
-      triggerSuccess(`Kullanıcı "${newUsernameField}" başarıyla oluşturuldu.`);
-    }
+    const saveUser = async () => {
+      try {
+        await addOrUpdateUser(newUser);
+        triggerSuccess(`Kullanıcı "${newUsernameField}" başarıyla oluşturuldu.`);
+      } catch (err: any) {
+        setLoginError(`Kullanıcı oluşturulamadı: ${err.message || err}`);
+      }
+    };
+    saveUser();
     // reset form
     setNewUserName('');
     setNewUserSurname('');
@@ -263,33 +557,40 @@ export default function AdminPanel({
       setLoginError('Bu kullanıcı adı başka bir kullanıcı tarafından kullanılıyor.');
       return;
     }
-    if (setUsers && users) {
-      const updatedUsers = users.map(u => {
-        if (u.id === editingUserId) {
-          return {
-            ...u,
-            name: newUserName,
-            surname: newUserSurname,
-            username: newUsernameField,
-            password: newUserPassword ? newUserPassword : u.password,
-            role: newUserRole,
-            profile: profData,
-            privacy: profPrivacy
-          };
+    const originalUser = users?.find(u => u.id === editingUserId);
+    if (originalUser) {
+      const updatedUser = {
+        ...originalUser,
+        name: newUserName,
+        surname: newUserSurname,
+        username: newUsernameField,
+        password: newUserPassword ? newUserPassword : originalUser.password,
+        role: newUserRole,
+        profile: profData,
+        privacy: profPrivacy
+      };
+      
+      const saveUpdate = async () => {
+        try {
+          await addOrUpdateUser(updatedUser);
+          triggerSuccess(`Kullanıcı bilgileri güncellendi.`);
+          setActiveTab('list-users');
+        } catch (err: any) {
+          setLoginError(`Güncelleme başarısız: ${err.message || err}`);
         }
-        return u;
-      });
-      setUsers(updatedUsers);
-      triggerSuccess(`Kullanıcı bilgileri güncellendi.`);
-      setActiveTab('list-users');
+      };
+      saveUpdate();
     }
   };
 
-  const handleDeleteUser = (userId: string) => {
-    if (setUsers && users) {
-      const updatedUsers = users.filter(u => u.id !== userId);
-      setUsers(updatedUsers);
-      triggerSuccess('Kullanıcı sistemden silindi.');
+  const handleDeleteUser = async (userId: string) => {
+    if (window.confirm('Bu kullanıcıyı silmek istediğinize emin misiniz?')) {
+      try {
+        await deleteUserDoc(userId);
+        triggerSuccess('Kullanıcı sistemden silindi.');
+      } catch (err: any) {
+        alert('Kullanıcı silinemedi: ' + err.message);
+      }
     }
   };
 
@@ -319,7 +620,7 @@ export default function AdminPanel({
       setLoginError('Bu kullanıcı adı başka bir hesap tarafından kullanılıyor.');
       return;
     }
-    if (setUsers && users && setCurrentUser) {
+    if (setCurrentUser) {
       const updatedUser = {
         ...currentUser,
         name: ownName,
@@ -329,11 +630,18 @@ export default function AdminPanel({
         profile: profData,
         privacy: profPrivacy
       };
-      const updatedUsers = users.map(u => u.id === currentUser.id ? updatedUser : u);
-      setUsers(updatedUsers);
-      setCurrentUser(updatedUser);
-      setMemberView('dashboard');
-      triggerSuccess('Profiliniz başarıyla güncellendi.');
+      
+      const saveProfile = async () => {
+        try {
+          await addOrUpdateUser(updatedUser);
+          setCurrentUser(updatedUser);
+          setMemberView('dashboard');
+          triggerSuccess('Profiliniz başarıyla güncellendi.');
+        } catch (err: any) {
+          setLoginError(`Profil güncellenemedi: ${err.message || err}`);
+        }
+      };
+      saveProfile();
     }
   };
 
@@ -375,7 +683,7 @@ export default function AdminPanel({
       title: blogTitle,
       summary: blogSummary,
       content: blogContent,
-      image: IMAGES.heroBg,
+      image: blogImage || IMAGES.heroBg,
       category: blogCategory,
       date: new Date().toISOString().split('T')[0],
       author: 'AYMC Yönetim Kurulu',
@@ -392,6 +700,7 @@ export default function AdminPanel({
     setBlogSummary('');
     setBlogContent('');
     setBlogTags('');
+    setBlogImage('');
   };
 
   const handleCreateRoute = (e: React.FormEvent) => {
@@ -460,7 +769,7 @@ export default function AdminPanel({
   // Login View
   if (!currentUser) {
     return (
-      <div id="admin-login-screen" className="bg-[#050505] text-white min-h-screen flex items-center justify-center px-4 py-20">
+      <div id="admin-login-screen" className="bg-transparent text-white min-h-screen flex items-center justify-center px-4 py-20">
         <div className="max-w-md w-full bg-[#1A1A1A] border border-neutral-900 rounded-sm p-8 shadow-2xl relative">
           {/* Top emblem */}
           <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-20 h-20 bg-brand rounded-full border-4 border-black flex items-center justify-center text-white shadow-lg shadow-brand/20">
@@ -546,7 +855,7 @@ export default function AdminPanel({
   // If Member view
   if (currentUser.role === 'member') {
     return (
-      <div id="member-dashboard-screen" className="bg-[#050505] text-white min-h-screen py-24 px-4 sm:px-6 lg:px-8">
+      <div id="member-dashboard-screen" className="bg-transparent text-white min-h-screen py-24 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           {/* Header toolbar */}
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between border-b border-neutral-900 pb-6 mb-8 gap-4">
@@ -623,22 +932,19 @@ export default function AdminPanel({
                       type="file" 
                       accept="image/*" 
                       className="hidden" 
-                      onChange={(e) => {
+                      onChange={async (e) => {
                         const file = e.target.files?.[0];
                         if(file) {
-                          if(file.size > 800000) {
-                            alert("Dosya boyutu çok yüksek. Lütfen 800KB'den küçük bir görsel seçin.");
-                            return;
-                          }
-                          const reader = new FileReader();
-                          reader.onloadend = () => {
-                            const updatedUser = { ...currentUser, avatarUrl: reader.result as string };
+                          try {
+                            const compressedBase64 = await resizeAvatar(file);
+                            const updatedUser = { ...currentUser, avatarUrl: compressedBase64 };
                             setCurrentUser?.(updatedUser);
-                            if(setUsers) setUsers(users?.map(u => u.id === currentUser.id ? updatedUser : u));
+                            await addOrUpdateUser(updatedUser);
                             setSuccessMsg('Profil fotoğrafı güncellendi.');
                             setTimeout(() => setSuccessMsg(''), 3000);
-                          };
-                          reader.readAsDataURL(file);
+                          } catch (err: any) {
+                            alert('Profil fotoğrafı güncellenemedi: ' + err.message);
+                          }
                         }
                       }} 
                     />
@@ -967,7 +1273,7 @@ export default function AdminPanel({
   }
 
   return (
-    <div id="admin-dashboard-screen" className="bg-[#050505] text-white min-h-screen py-24 px-4 sm:px-6 lg:px-8">
+    <div id="admin-dashboard-screen" className="bg-transparent text-white min-h-screen py-24 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
         
         {/* Header toolbar */}
@@ -988,22 +1294,19 @@ export default function AdminPanel({
                   type="file" 
                   accept="image/*" 
                   className="hidden" 
-                  onChange={(e) => {
+                  onChange={async (e) => {
                     const file = e.target.files?.[0];
                     if(file) {
-                      if(file.size > 800000) {
-                        alert("Dosya boyutu çok yüksek. Lütfen 800KB'den küçük bir görsel seçin.");
-                        return;
-                      }
-                      const reader = new FileReader();
-                      reader.onloadend = () => {
-                        const updatedUser = { ...currentUser, avatarUrl: reader.result as string };
+                      try {
+                        const compressedBase64 = await resizeAvatar(file);
+                        const updatedUser = { ...currentUser, avatarUrl: compressedBase64 };
                         setCurrentUser?.(updatedUser);
-                        if(setUsers) setUsers(users?.map(u => u.id === currentUser.id ? updatedUser : u) || []);
+                        await addOrUpdateUser(updatedUser);
                         setSuccessMsg('Profil fotoğrafı güncellendi.');
                         setTimeout(() => setSuccessMsg(''), 3000);
-                      };
-                      reader.readAsDataURL(file);
+                      } catch (err: any) {
+                        alert('Profil fotoğrafı güncellenemedi: ' + err.message);
+                      }
                     }
                   }} 
                 />
@@ -1076,6 +1379,16 @@ export default function AdminPanel({
                   {users?.filter(u => u.status === 'pending').length}
                 </span>
               )}
+            </button>
+
+            <button
+              onClick={() => setActiveTab('upload-media')}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-sm text-xs font-sans font-bold tracking-wider uppercase transition-all ${
+                activeTab === 'upload-media' ? 'bg-brand text-white' : 'text-gray-400 hover:bg-neutral-900 hover:text-white'
+              }`}
+            >
+              <UploadCloud className="w-4 h-4" />
+              <span>GALERİYE MEDYA YÜKLE</span>
             </button>
           </div>
 
@@ -1628,6 +1941,69 @@ export default function AdminPanel({
                   />
                 </div>
 
+                {/* Görsel Yükleme */}
+                <div className="space-y-2">
+                  <label className="block text-[10px] font-sans font-bold tracking-wider text-gray-400 uppercase">Haber Görseli Ekle</label>
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                    <div className="md:col-span-8">
+                      <div className="border-2 border-dashed border-neutral-800 hover:border-brand/40 rounded-xl p-6 transition-all bg-neutral-950 flex flex-col items-center justify-center text-center cursor-pointer relative group">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            setIsCompressingBlogImage(true);
+                            try {
+                              const compressedBase64 = await resizeGalleryImage(file);
+                              setBlogImage(compressedBase64);
+                            } catch (err) {
+                              console.error(err);
+                              alert('Görsel sıkıştırılamadı. Lütfen başka bir resim seçin.');
+                            } finally {
+                              setIsCompressingBlogImage(false);
+                            }
+                          }}
+                          className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
+                        />
+                        <div className="space-y-2 pointer-events-none">
+                          <div className="w-10 h-10 bg-neutral-900 rounded-full flex items-center justify-center mx-auto text-neutral-500 group-hover:text-brand transition-colors">
+                            <Plus className="w-5 h-5" />
+                          </div>
+                          <div className="text-xs font-bold text-neutral-300 uppercase tracking-wider">
+                            {isCompressingBlogImage ? 'Görsel İşleniyor...' : 'Tıkla veya Sürükle Bırak'}
+                          </div>
+                          <p className="text-[9px] text-neutral-500 uppercase tracking-widest">JPG, PNG - Otomatik Sıkıştırılır</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="md:col-span-4 flex items-center justify-center bg-neutral-950 rounded-xl border border-neutral-900 p-2 overflow-hidden min-h-[120px] relative">
+                      {blogImage ? (
+                        <div className="relative w-full h-full group">
+                          <img
+                            src={blogImage}
+                            alt="Haber Görseli Önizleme"
+                            className="w-full h-full max-h-[120px] object-cover rounded-lg"
+                            referrerPolicy="no-referrer"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setBlogImage('')}
+                            className="absolute top-1 right-1 bg-black/80 hover:bg-red-600/90 text-white rounded-full p-1.5 transition-colors border border-white/10 z-20 cursor-pointer"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="text-center">
+                          <div className="text-[9px] text-neutral-600 font-extrabold uppercase tracking-widest">Görsel Seçilmedi</div>
+                          <div className="text-[8px] text-neutral-700 uppercase mt-1">Varsayılan görsel kullanılacak</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-[10px] font-sans font-bold tracking-wider text-gray-400 uppercase mb-2">İçerik Yazısı</label>
                   <textarea
@@ -1768,6 +2144,177 @@ export default function AdminPanel({
                   </button>
                 </div>
               </form>
+            )}
+
+            {/* TAB: UPLOAD MEDIA */}
+            {activeTab === 'upload-media' && (
+              <div className="space-y-6">
+                <div>
+                  <h3 className="font-bebas text-2xl text-white tracking-wider uppercase">GALERİYE MEDYA EKLE</h3>
+                  <p className="font-sans text-xs text-gray-400">Yönetim komuta merkezinden galeriye fotoğraf veya video yükleyin ya da YouTube / Instagram video linki ekleyin.</p>
+                </div>
+
+                <div className="flex border-b border-neutral-900 pb-2 gap-4">
+                  <button
+                    onClick={() => {
+                      setMediaUploadType('file');
+                      setMediaErrorMsg('');
+                      setMediaSuccessMsg('');
+                    }}
+                    className={`pb-2 text-xs font-sans font-bold tracking-wider uppercase border-b-2 transition-all ${
+                      mediaUploadType === 'file' ? 'border-brand text-brand' : 'border-transparent text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    Dosya Yükle
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMediaUploadType('youtube');
+                      setMediaErrorMsg('');
+                      setMediaSuccessMsg('');
+                    }}
+                    className={`pb-2 text-xs font-sans font-bold tracking-wider uppercase border-b-2 transition-all ${
+                      mediaUploadType === 'youtube' ? 'border-brand text-brand' : 'border-transparent text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    YouTube Linki Ekle
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMediaUploadType('instagram');
+                      setMediaErrorMsg('');
+                      setMediaSuccessMsg('');
+                    }}
+                    className={`pb-2 text-xs font-sans font-bold tracking-wider uppercase border-b-2 transition-all ${
+                      mediaUploadType === 'instagram' ? 'border-brand text-brand' : 'border-transparent text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    Instagram Linki Ekle
+                  </button>
+                </div>
+
+                <div className="space-y-6 pt-2">
+                  <div>
+                    <label className="block text-[10px] font-sans font-bold tracking-wider text-gray-400 uppercase mb-2">Medya Açıklaması / Başlık (İsteğe Bağlı)</label>
+                    <input
+                      type="text"
+                      value={mediaDescription}
+                      onChange={(e) => setMediaDescription(e.target.value)}
+                      placeholder="Medya hakkında kısa bir not veya başlık..."
+                      className="w-full bg-black border border-neutral-800 rounded-sm py-2.5 px-4 text-xs font-sans text-white focus:outline-none focus:border-brand placeholder-neutral-600 transition-colors"
+                      disabled={isUploadingMedia}
+                    />
+                  </div>
+
+                  {mediaUploadType === 'file' ? (
+                    <>
+                      <div>
+                        <input
+                          type="file"
+                          ref={mediaFileInputRef}
+                          onChange={handleMediaFileChange}
+                          accept="image/*,video/*"
+                          className="hidden"
+                          disabled={isUploadingMedia}
+                        />
+                        <button
+                          onClick={() => mediaFileInputRef.current?.click()}
+                          disabled={isUploadingMedia}
+                          className="w-full py-12 border-2 border-dashed border-neutral-800 rounded-sm flex flex-col items-center justify-center text-gray-400 hover:border-brand hover:text-brand hover:bg-brand/5 transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-black cursor-pointer"
+                        >
+                          <UploadCloud className="w-10 h-10 mb-4 text-brand" />
+                          <span className="font-sans font-bold text-sm mb-1 px-4 text-center truncate max-w-full">
+                            {selectedMediaFile ? selectedMediaFile.name : "Dosya Seçin"}
+                          </span>
+                          <span className="text-[10px] uppercase font-bold tracking-widest text-neutral-500 text-center max-w-sm leading-relaxed block mt-1">
+                            Fotoğraflar: Sınırsız Boyut (Otomatik Sıkıştırılır) <br />
+                            Videolar: Maksimum 20 MB (Daha büyükleri için YouTube veya Instagram Linki sekmesini kullanın)
+                          </span>
+                        </button>
+                      </div>
+
+                      {selectedMediaFile && (
+                        <div className="p-4 bg-black rounded-sm border border-neutral-900 text-xs font-mono text-gray-400 flex flex-col gap-1.5">
+                          <div><span className="text-brand font-bold">DOSYA ADI:</span> {selectedMediaFile.name}</div>
+                          <div><span className="text-brand font-bold">DOSYA TÜRÜ:</span> {selectedMediaFile.type || 'Bilinmiyor'}</div>
+                          <div><span className="text-brand font-bold">DOSYA BOYUTU:</span> {(selectedMediaFile.size / (1024 * 1024)).toFixed(2)} MB</div>
+                          <div>
+                            <span className="text-brand font-bold">YÜKLEME KATEGORİSİ:</span>{' '}
+                            {selectedMediaFile.type.startsWith('video/') || /\.(mp4|webm|ogg|mov|avi|mkv|flv|3gp|mpeg)$/i.test(selectedMediaFile.name) ? (
+                              <span className="text-emerald-400 font-bold">VİDEOLAR</span>
+                            ) : (
+                              <span className="text-blue-400 font-bold">FOTOĞRAFLAR</span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : mediaUploadType === 'youtube' ? (
+                    <div>
+                      <label className="block text-[10px] font-sans font-bold tracking-wider text-gray-400 uppercase mb-2">YouTube Video Linki (Video, Shorts veya Canlı Yayın)</label>
+                      <input
+                        type="url"
+                        value={youtubeUrl}
+                        onChange={(e) => setYoutubeUrl(e.target.value)}
+                        placeholder="Örn: https://www.youtube.com/watch?v=mWcnzdCoULs veya https://youtu.be/..."
+                        className="w-full bg-black border border-neutral-800 rounded-sm py-2.5 px-4 text-xs font-sans text-white focus:outline-none focus:border-brand placeholder-neutral-600 transition-colors"
+                        disabled={isUploadingMedia}
+                      />
+                      <p className="text-[10px] text-gray-500 mt-2">Kopyaladığınız YouTube video veya Shorts linkini buraya yapıştırarak galeriye "Videolar" sekmesinden anında yansıtabilirsiniz.</p>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-[10px] font-sans font-bold tracking-wider text-gray-400 uppercase mb-2">Instagram Linki (Reels veya Gönderi)</label>
+                      <input
+                        type="url"
+                        value={instagramUrl}
+                        onChange={(e) => setInstagramUrl(e.target.value)}
+                        placeholder="Örn: https://www.instagram.com/reel/DZGnwZQopr5/"
+                        className="w-full bg-black border border-neutral-800 rounded-sm py-2.5 px-4 text-xs font-sans text-white focus:outline-none focus:border-brand placeholder-neutral-600 transition-colors"
+                        disabled={isUploadingMedia}
+                      />
+                      <p className="text-[10px] text-gray-500 mt-2">Kopyaladığınız Reels veya Gönderi linkini buraya yapıştırarak galeriye "Videolar" sekmesinden anında yansıtabilirsiniz.</p>
+                    </div>
+                  )}
+
+                  {isUploadingMedia && mediaUploadType === 'file' && (
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-xs font-mono text-gray-400">
+                        <span>{mediaUploadStatus}</span>
+                        <span>%{mediaUploadProgress}</span>
+                      </div>
+                      <div className="w-full bg-neutral-900 h-2 rounded-full overflow-hidden">
+                        <div 
+                          className="bg-brand h-full transition-all duration-300" 
+                          style={{ width: `${mediaUploadProgress}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {mediaErrorMsg && (
+                    <div className="bg-red-950/40 border border-red-500 text-red-200 p-4 rounded-sm text-xs font-sans flex items-center space-x-2">
+                      <Info className="w-4 h-4 text-red-400" />
+                      <span>{mediaErrorMsg}</span>
+                    </div>
+                  )}
+
+                  {mediaSuccessMsg && (
+                    <div className="bg-emerald-950/40 border border-emerald-500 text-emerald-200 p-4 rounded-sm text-xs font-sans flex items-center space-x-2">
+                      <Check className="w-4 h-4 text-emerald-400" />
+                      <span>{mediaSuccessMsg}</span>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={handleMediaUpload}
+                    disabled={isUploadingMedia || (mediaUploadType === 'file' ? !selectedMediaFile : mediaUploadType === 'youtube' ? !youtubeUrl : !instagramUrl)}
+                    className="w-full py-4 bg-brand hover:bg-brand/90 text-white font-sans font-bold rounded-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-xs tracking-widest uppercase cursor-pointer"
+                  >
+                    {isUploadingMedia ? 'İŞLENİYOR...' : (mediaUploadType === 'file' ? 'YÜKLE VE YAYINLA' : 'LİNKİ EKLE VE YAYINLA')}
+                  </button>
+                </div>
+              </div>
             )}
 
 

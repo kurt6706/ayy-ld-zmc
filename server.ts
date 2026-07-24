@@ -5,12 +5,76 @@ import { requireAuth, AuthRequest } from "./src/middleware/auth.ts";
 import { db } from "./src/db/index.ts";
 import { users, googleTokens, clubTasks, clubSheets, clubDriveFiles, clubCalendarEvents } from "./src/db/schema.ts";
 import { eq, desc } from "drizzle-orm";
+import { GoogleGenAI } from "@google/genai";
 
 async function startServer() {
   const app = express();
   const PORT = 3000;
 
   app.use(express.json());
+
+  // API Route: AI support chatbot using Gemini 3.5 Flash
+  app.post("/api/gemini/support", async (req, res) => {
+    try {
+      const { message, history } = req.body;
+      if (!message) {
+        return res.status(400).json({ error: "Message parameter is required" });
+      }
+
+      // Initialize Gemini Client
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        // Fallback response if API Key is not configured yet
+        return res.json({
+          text: "Merhaba! Ben Ayyıldız Moto Kulübü Canlı Destek Yapay Zeka Asistanıyım. Şu anda arka planda ufak bir ayar yapıyorum (API anahtarı henüz tanımlanmamış), ancak size kulübümüz hakkında genel bilgi vermekten mutluluk duyarım! Telsiz kullanımı, üyelik şartlarımız, disiplin kurallarımız veya neden bizi seçmeniz gerektiği gibi konularda sorular sorabilirsiniz. Tekeriniz düz bassın!"
+        });
+      }
+
+      const ai = new GoogleGenAI({
+        apiKey: apiKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          }
+        }
+      });
+
+      // Prepare contents with history if provided, or simple prompt
+      let contents: any[] = [];
+      if (history && Array.isArray(history)) {
+        contents = history.map((h: any) => ({
+          role: h.role === 'user' ? 'user' : 'model',
+          parts: [{ text: h.text }]
+        }));
+      }
+      contents.push({
+        role: 'user',
+        parts: [{ text: message }]
+      });
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents: contents,
+        config: {
+          systemInstruction: `Sen Ayyıldız Moto Kulübü'nün (Ayyıldız Moto Kulüp) 7/24 canlı destek asistanısın. Kulübümüzü temsil ediyorsun. Samimi, motorcu dostu, hevesli ve cana yakın bir dille konuşmalısın. Motorculara "tekeriniz düz bassın", "rüzgarınız bol olsun", "yolunuz açık olsun" gibi hitaplar kullanabilirsin.
+
+Önemli Bilgiler:
+1. **Telsiz Kullanımı**: Sürüşlerimizde telsiz iletişimi hayati önem taşır. Genellikle UHF veya PMR telsizler tercih edilir. Sürüş başlamadan önce frekans ve kanal ayarları tüm grup için ortak ayarlanır. Sürüş esnasında telsizden boş lakırdı yapılmaz, sadece yol kaptanlarının (öncü/artçı) yönlendirmeleri, yol engelleri, güvenlik uyarıları veya rota bilgileri aktarılır.
+2. **Nasıl Üye Olunur?**: Üye olmak için web sitemizdeki sağ üstte bulunan "Üye Girişi" (veya menüdeki Üye Giriş Paneli) üzerinden sisteme kaydolabilirsiniz. Kaydolduktan sonra profil bilgilerinizi doldurun. Aktif sürüşlerimize katılarak, disiplinli duruş sergileyerek ve kulüp tüzüğünü benimseyerek aday üyelikten resmi üyeliğe geçiş yapabilirsiniz.
+3. **Neden Bizi Seçmelisiniz?**: Çünkü biz sadece sürüş yapmıyoruz; yüksek güvenlik bilincine sahip, güçlü kardeşlik ve dostluk bağları olan, deneyimli yol kaptanları rehberliğinde keyifli rotalar çizen, telsizli ve disiplinli sürüş eğitimi sunan bir aileyiz! Sosyal sorumluluk projeleri, milli değerlerimize bağlılık ve kaliteli etkinliklerimizle fark yaratıyoruz.
+4. **Disiplin Kuralları**: Grup sürüşlerinde fermuar düzeni (ikili zikzak düzeni) uygulanır. Yol kaptanı (öncü) ve artçı geçilemez. Güvenlik ekipmanları (kask, korumalı ceket, eldiven, korumalı pantolon, bot) eksiksiz olmak zorundadır. Alkol veya sürüş güvenliğini tehlikeye atacak maddeler kesinlikle yasaktır. Trafik kurallarına harfiyen riayet edilir.
+
+Sorulara motorcu samimiyetiyle, net ve çok uzun olmayan cevaplar ver. Kullanıcılara kulübün rüzgarını ve kardeşlik ruhunu hissettir!`,
+          temperature: 0.7,
+        }
+      });
+
+      res.json({ text: response.text });
+    } catch (error: any) {
+      console.error("Gemini support error:", error);
+      res.status(500).json({ error: error.message || "Yapay zeka asistanı yanıt verirken bir hata oluştu." });
+    }
+  });
 
   // Helper to fetch user's active Google Token from database
   async function getGoogleToken(uid: string): Promise<string> {

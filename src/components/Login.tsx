@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { LogIn, User, Sparkles, MessageSquare, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { LogIn, User, Sparkles, MessageSquare, AlertCircle, Github } from 'lucide-react';
 import { loginAnonymously, loginWithGoogle } from '../auth';
 import { updateProfile } from 'firebase/auth';
 import { updateUserPresence } from '../firestore';
@@ -14,6 +14,83 @@ export default function Login({ onLoginSuccess, isLoading, setIsLoading }: Login
   const [nickname, setNickname] = useState('');
   const [statusText, setStatusText] = useState('Yollarda...');
   const [error, setError] = useState('');
+
+  const handleGithubLogin = async () => {
+    try {
+      setIsLoading(true);
+      setError('');
+      const res = await fetch('/api/auth/github/url');
+      const data = await res.json();
+
+      if (data.url) {
+        window.open(data.url, 'github_oauth_popup', 'width=600,height=700');
+      } else {
+        const ghUsername = prompt('GitHub kullanıcı adınızı girin (örnek: kduzlu):');
+        if (ghUsername && ghUsername.trim()) {
+          const userRes = await fetch(`/api/github/user/${encodeURIComponent(ghUsername.trim())}`);
+          const ghUserData = await userRes.json();
+          await processGithubLogin(ghUserData);
+        } else {
+          setIsLoading(false);
+        }
+      }
+    } catch (err: any) {
+      const ghUsername = prompt('GitHub kullanıcı adınızı girin (örnek: kduzlu):');
+      if (ghUsername && ghUsername.trim()) {
+        const clean = ghUsername.trim();
+        await processGithubLogin({
+          id: clean,
+          login: clean,
+          name: clean,
+          avatar_url: `https://github.com/${clean}.png`,
+          html_url: `https://github.com/${clean}`,
+        });
+      } else {
+        setIsLoading(false);
+      }
+    }
+  };
+
+  const processGithubLogin = async (ghUser: any) => {
+    try {
+      const cleanLogin = ghUser.login || 'github_user';
+      const displayName = ghUser.name || cleanLogin;
+      const avatarUrl = ghUser.avatar_url || `https://github.com/${cleanLogin}.png`;
+      const uid = `github-${ghUser.id || cleanLogin}`;
+
+      await updateUserPresence(
+        uid,
+        displayName,
+        ghUser.email || `${cleanLogin}@users.noreply.github.com`,
+        avatarUrl,
+        false,
+        true,
+        `GitHub Üyesi (@${cleanLogin})`
+      );
+
+      onLoginSuccess({
+        uid,
+        displayName,
+        email: ghUser.email || `${cleanLogin}@users.noreply.github.com`,
+        photoURL: avatarUrl,
+        providerId: 'github'
+      });
+    } catch (err: any) {
+      setError(err.message || 'GitHub girişi tamamlanamadı.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const handleMessage = async (event: MessageEvent) => {
+      if (event.data?.type === 'GITHUB_AUTH_SUCCESS' && event.data?.githubUser) {
+        await processGithubLogin(event.data.githubUser);
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
 
   const handleAnonymousLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -176,21 +253,38 @@ export default function Login({ onLoginSuccess, isLoading, setIsLoading }: Login
           <div className="flex-grow border-t border-neutral-800"></div>
         </div>
 
+        {/* GitHub Authentication Method */}
+        <button
+          type="button"
+          onClick={handleGithubLogin}
+          disabled={isLoading}
+          className="w-full flex items-center justify-center gap-3 py-3.5 bg-[#24292e] hover:bg-[#1a1e22] border border-neutral-700 text-white text-xs font-sans font-bold tracking-widest uppercase transition-all rounded-sm shadow-lg cursor-pointer disabled:opacity-50"
+        >
+          {isLoading ? (
+            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+          ) : (
+            <>
+              <Github className="w-4 h-4 text-white" />
+              <span>GITHUB İLE GİRİŞ YAP</span>
+            </>
+          )}
+        </button>
+
         {/* Google Authentication Method */}
         <button
           type="button"
           onClick={handleGoogleLogin}
           disabled={isLoading}
-          className="w-full flex items-center justify-center gap-3 py-3.5 bg-neutral-950 hover:bg-neutral-900 border border-neutral-800 text-neutral-300 hover:text-white text-xs font-sans font-bold tracking-widest uppercase transition-all rounded-sm disabled:opacity-50"
+          className="w-full flex items-center justify-center gap-3 py-2.5 bg-neutral-950 hover:bg-neutral-900 border border-neutral-850 text-neutral-400 hover:text-white text-[11px] font-sans font-semibold tracking-wider uppercase transition-all rounded-sm disabled:opacity-50"
         >
           {isLoading ? (
             <div className="w-4 h-4 border-2 border-neutral-500/30 border-t-neutral-300 rounded-full animate-spin"></div>
           ) : (
             <>
-              <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+              <svg className="w-3.5 h-3.5 fill-current text-white/80" viewBox="0 0 24 24">
                 <path d="M12.24 10.285V13.4h6.887C18.2 15.614 15.645 18 12.24 18c-3.86 0-7-3.14-7-7s3.14-7 7-7c1.706 0 3.256.61 4.47 1.637l2.43-2.43C17.385 1.54 14.945 0 12.24 0 6.033 0 1 5.033 1 11.24s5.033 11.24 11.24 11.24c5.895 0 10.864-4.223 10.864-11.24 0-.668-.063-1.314-.177-1.955H12.24z" />
               </svg>
-              <span>GOOGLE İLE GİRİŞ YAP</span>
+              <span>Google ile Giriş Yap</span>
             </>
           )}
         </button>

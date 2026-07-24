@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Lock, Unlock, Eye, EyeOff, LayoutDashboard, Users, Calendar, Plus, RefreshCw, LogOut, Check, X, FileText, Map, Image, Edit3, Trash2, ArrowLeft, MessageSquare, Image as ImageIcon, UploadCloud, Play, Info, UserPlus, CheckCircle } from 'lucide-react';
+import { Lock, Unlock, Eye, EyeOff, LayoutDashboard, Users, Calendar, Plus, RefreshCw, LogOut, Check, X, FileText, Map, Image, Edit3, Trash2, ArrowLeft, MessageSquare, Image as ImageIcon, UploadCloud, Play, Info, UserPlus, CheckCircle, Github } from 'lucide-react';
 import { Event, Route, BlogPost, UserPost, GalleryItem } from '../types';
 import { IMAGES } from '../data';
 import { addOrUpdateUserPost, deleteUserPostDoc, addOrUpdateUser, deleteUserDoc, addOrUpdateGalleryItem } from '../lib/firebaseService';
@@ -192,6 +192,9 @@ export default function AdminPanel({
       motorcycle: regMotorcycle.trim(),
       bloodType: regBloodType,
       phone: regPhone.trim(),
+      githubUsername: regUsername.trim(),
+      githubUrl: `https://github.com/${regUsername.trim()}`,
+      avatarUrl: `https://github.com/${regUsername.trim()}.png`,
       profile: {
         motoBrand: regMotorcycle.trim(),
         bloodType: regBloodType,
@@ -333,6 +336,128 @@ export default function AdminPanel({
       }
     }
   };
+
+  const processGithubUserLogin = async (ghUser: {
+    id: string;
+    login: string;
+    name?: string;
+    email?: string;
+    avatar_url?: string;
+    html_url?: string;
+    bio?: string;
+  }) => {
+    try {
+      setLoginError('');
+      const cleanLogin = ghUser.login.trim();
+      const isDefaultAdmin = cleanLogin.toLowerCase() === 'kduzlu' || ghUser.email === 'kduzlu@gmail.com' || cleanLogin.toLowerCase() === 'admin';
+      
+      let foundUser = users.find(u => 
+        (u.githubUsername && u.githubUsername.toLowerCase() === cleanLogin.toLowerCase()) || 
+        (u.username && u.username.toLowerCase() === cleanLogin.toLowerCase()) || 
+        (ghUser.email && u.email === ghUser.email)
+      );
+
+      const avatarUrl = ghUser.avatar_url || `https://github.com/${cleanLogin}.png`;
+      const githubUrl = ghUser.html_url || `https://github.com/${cleanLogin}`;
+
+      if (foundUser) {
+        const updated = {
+          ...foundUser,
+          githubUsername: cleanLogin,
+          githubUrl: githubUrl,
+          avatarUrl: avatarUrl || foundUser.avatarUrl || `https://github.com/${cleanLogin}.png`,
+          email: ghUser.email || foundUser.email || `${cleanLogin}@users.noreply.github.com`,
+          role: isDefaultAdmin ? 'admin' : foundUser.role,
+          status: isDefaultAdmin ? 'approved' : foundUser.status,
+          statusText: isDefaultAdmin ? 'Kurucu Üye / Töre Muhafızı' : (foundUser.statusText || `GitHub Üyesi (@${cleanLogin})`),
+        };
+        await addOrUpdateUser(updated);
+        foundUser = updated;
+
+        if (foundUser.status === 'pending') {
+          setLoginError('Üyelik başvurunuz alındı. Yönetici onayından sonra giriş yapabilirsiniz.');
+          return;
+        }
+        if (foundUser.status === 'rejected') {
+          setLoginError('Başvurunuz reddedilmiştir.');
+          return;
+        }
+        setCurrentUser(foundUser);
+      } else {
+        const newUser = {
+          id: `github-${ghUser.id || Date.now()}`,
+          name: ghUser.name ? ghUser.name.split(' ')[0] : cleanLogin,
+          surname: ghUser.name && ghUser.name.split(' ').length > 1 ? ghUser.name.split(' ').slice(1).join(' ') : '',
+          username: cleanLogin,
+          password: '',
+          role: isDefaultAdmin ? 'admin' : 'member',
+          status: 'approved',
+          githubUsername: cleanLogin,
+          githubUrl: githubUrl,
+          avatarUrl: avatarUrl,
+          email: ghUser.email || `${cleanLogin}@users.noreply.github.com`,
+          statusText: isDefaultAdmin ? 'Kurucu Üye / Töre Muhafızı' : `GitHub Üyesi (@${cleanLogin})`,
+          bio: ghUser.bio || 'GitHub Kulüp Sürücüsü',
+          profile: {
+            motoBrand: 'Motosiklet Tutkunu',
+            bloodType: '0 Rh+',
+          },
+          privacy: {}
+        };
+        await addOrUpdateUser(newUser);
+        if (setUsers) {
+          setUsers([...users, newUser]);
+        }
+        setCurrentUser(newUser);
+      }
+    } catch (err: any) {
+      console.error("GitHub Login error:", err);
+      setLoginError('GitHub girişi gerçekleştirilirken bir hata oluştu.');
+    }
+  };
+
+  const handleGithubLogin = async () => {
+    try {
+      setLoginError('');
+      const res = await fetch('/api/auth/github/url');
+      const data = await res.json();
+
+      if (data.url) {
+        window.open(data.url, 'github_oauth_popup', 'width=600,height=700');
+      } else {
+        const ghUsername = prompt('GitHub kullanıcı adınızı girin (örnek: kduzlu):');
+        if (ghUsername && ghUsername.trim()) {
+          const userRes = await fetch(`/api/github/user/${encodeURIComponent(ghUsername.trim())}`);
+          const ghUserData = await userRes.json();
+          await processGithubUserLogin(ghUserData);
+        }
+      }
+    } catch (err: any) {
+      console.error("GitHub auth error:", err);
+      const ghUsername = prompt('GitHub kullanıcı adınızı girin (örnek: kduzlu):');
+      if (ghUsername && ghUsername.trim()) {
+        const clean = ghUsername.trim();
+        await processGithubUserLogin({
+          id: clean,
+          login: clean,
+          name: clean,
+          avatar_url: `https://github.com/${clean}.png`,
+          html_url: `https://github.com/${clean}`,
+          bio: 'GitHub Sürücüsü'
+        });
+      }
+    }
+  };
+
+  useEffect(() => {
+    const handleMessage = async (event: MessageEvent) => {
+      if (event.data?.type === 'GITHUB_AUTH_SUCCESS' && event.data?.githubUser) {
+        await processGithubUserLogin(event.data.githubUser);
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [users]);
 
   const handleGoogleLogin = async () => {
     try {
@@ -970,17 +1095,41 @@ export default function AdminPanel({
 
               <button
                 type="button"
-                onClick={handleGoogleLogin}
-                className="w-full flex items-center justify-center gap-3 py-3.5 bg-[#0e0e0e] hover:bg-neutral-900 border border-neutral-800 text-neutral-300 text-xs font-sans font-bold tracking-widest uppercase hover:text-white transition-all rounded-sm cursor-pointer"
+                onClick={handleGithubLogin}
+                className="w-full flex items-center justify-center gap-2.5 py-3.5 bg-[#24292e] hover:bg-[#1a1e22] border border-neutral-700 text-white text-xs font-sans font-bold tracking-widest uppercase transition-all rounded-sm cursor-pointer shadow-lg shadow-black/40"
               >
-                <svg className="w-4 h-4 fill-current text-white" viewBox="0 0 24 24">
+                <Github className="w-4 h-4 text-white" />
+                <span>GITHUB İLE GİRİŞ YAP</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleGoogleLogin}
+                className="w-full flex items-center justify-center gap-2.5 py-2.5 bg-[#0e0e0e] hover:bg-neutral-900 border border-neutral-850 text-neutral-400 text-[11px] font-sans font-semibold tracking-wider uppercase hover:text-white transition-all rounded-sm cursor-pointer"
+              >
+                <svg className="w-3.5 h-3.5 fill-current text-white/80" viewBox="0 0 24 24">
                   <path d="M12.24 10.285V13.4h6.887C18.2 15.614 15.645 18 12.24 18c-3.86 0-7-3.14-7-7s3.14-7 7-7c1.706 0 3.256.61 4.47 1.637l2.43-2.43C17.385 1.54 14.945 0 12.24 0 6.033 0 1 5.033 1 11.24s5.033 11.24 11.24 11.24c5.895 0 10.864-4.223 10.864-11.24 0-.668-.063-1.314-.177-1.955H12.24z"/>
                 </svg>
-                <span>GOOGLE İLE GİRİŞ YAP</span>
+                <span>Google ile Giriş Yap</span>
               </button>
             </form>
           ) : (
             <form onSubmit={handleRegisterSubmit} className="space-y-3.5">
+              <button
+                type="button"
+                onClick={handleGithubLogin}
+                className="w-full flex items-center justify-center gap-2.5 py-3.5 bg-[#24292e] hover:bg-[#1a1e22] border border-neutral-700 text-white text-xs font-sans font-bold tracking-widest uppercase transition-all rounded-sm cursor-pointer shadow-lg shadow-black/40 mb-3"
+              >
+                <Github className="w-4 h-4 text-white" />
+                <span>GITHUB İLE HIZLI ÜYE OL</span>
+              </button>
+
+              <div className="relative flex py-1 items-center">
+                <div className="flex-grow border-t border-neutral-800"></div>
+                <span className="flex-shrink mx-4 text-neutral-500 text-[10px] uppercase font-bold tracking-wider">veya Formu Doldurun</span>
+                <div className="flex-grow border-t border-neutral-800"></div>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[10px] font-sans font-bold tracking-wider text-gray-400 uppercase mb-1">Adınız</label>
@@ -1006,13 +1155,13 @@ export default function AdminPanel({
               </div>
 
               <div>
-                <label className="block text-[10px] font-sans font-bold tracking-wider text-gray-400 uppercase mb-1">Kullanıcı Adı (*)</label>
+                <label className="block text-[10px] font-sans font-bold tracking-wider text-gray-400 uppercase mb-1">Kullanıcı Adı / GitHub Kullanıcı Adı (*)</label>
                 <input
                   type="text"
                   required
                   value={regUsername}
                   onChange={(e) => setRegUsername(e.target.value)}
-                  placeholder="Giriş yapmak için kullanıcı adı..."
+                  placeholder="Giriş ve GitHub profiliniz için..."
                   className="w-full bg-black border border-neutral-800 rounded-sm py-2.5 px-3 text-xs font-sans text-white focus:outline-none focus:border-brand"
                 />
               </div>

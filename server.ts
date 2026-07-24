@@ -95,6 +95,189 @@ Sorulara motorcu samimiyetiyle, net ve çok uzun olmayan cevaplar ver. Kullanıc
     }
   }
 
+  // API Route: Get GitHub OAuth URL
+  app.get("/api/auth/github/url", (req, res) => {
+    const clientId = process.env.GITHUB_CLIENT_ID || process.env.VITE_GITHUB_CLIENT_ID;
+    const appUrl = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+    const redirectUri = `${appUrl}/api/auth/github/callback`;
+
+    if (!clientId) {
+      return res.json({
+        configured: false,
+        message: "GITHUB_CLIENT_ID ayarlanmamış. GitHub kullanıcı adınız ile doğrudan hızlı üyelik gerçekleştirebilirsiniz.",
+      });
+    }
+
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      scope: "read:user user:email",
+    });
+
+    res.json({
+      configured: true,
+      url: `https://github.com/login/oauth/authorize?${params.toString()}`,
+      redirectUri
+    });
+  });
+
+  // API Route: GitHub OAuth Callback
+  const handleGithubCallback = async (req: express.Request, res: express.Response) => {
+    const { code } = req.query;
+    const clientId = process.env.GITHUB_CLIENT_ID || process.env.VITE_GITHUB_CLIENT_ID;
+    const clientSecret = process.env.GITHUB_CLIENT_SECRET;
+
+    if (!code || !clientId || !clientSecret) {
+      return res.status(400).send(`
+        <html>
+          <body style="background:#111;color:#fff;font-family:sans-serif;padding:2rem;text-align:center;">
+            <h2>GitHub Giriş Hatası</h2>
+            <p>GITHUB_CLIENT_ID veya GITHUB_CLIENT_SECRET tanımlı değil.</p>
+            <button onclick="window.close()" style="padding:10px 20px;background:#e50914;color:#fff;border:none;border-radius:4px;cursor:pointer;">Kapat</button>
+          </body>
+        </html>
+      `);
+    }
+
+    try {
+      const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          client_id: clientId,
+          client_secret: clientSecret,
+          code,
+        }),
+      });
+
+      const tokenData = await tokenRes.json();
+      if (tokenData.error || !tokenData.access_token) {
+        throw new Error(tokenData.error_description || "GitHub jetonu alınamadı.");
+      }
+
+      const userRes = await fetch("https://api.github.com/user", {
+        headers: {
+          Authorization: `Bearer ${tokenData.access_token}`,
+          "User-Agent": "Ayyildiz-Moto-Club-App",
+        },
+      });
+      const ghUser = await userRes.json();
+
+      let email = ghUser.email;
+      if (!email) {
+        try {
+          const emailsRes = await fetch("https://api.github.com/user/emails", {
+            headers: {
+              Authorization: `Bearer ${tokenData.access_token}`,
+              "User-Agent": "Ayyildiz-Moto-Club-App",
+            },
+          });
+          const emails = await emailsRes.json();
+          if (Array.isArray(emails)) {
+            const primary = emails.find((e: any) => e.primary) || emails[0];
+            if (primary) email = primary.email;
+          }
+        } catch (e) {
+          console.warn("Could not fetch user emails from GitHub:", e);
+        }
+      }
+
+      const payload = {
+        id: String(ghUser.id),
+        login: ghUser.login,
+        name: ghUser.name || ghUser.login,
+        email: email || `${ghUser.login}@users.noreply.github.com`,
+        avatar_url: ghUser.avatar_url || `https://github.com/${ghUser.login}.png`,
+        html_url: ghUser.html_url || `https://github.com/${ghUser.login}`,
+        bio: ghUser.bio || "",
+        public_repos: ghUser.public_repos || 0,
+      };
+
+      res.send(`
+        <html>
+          <body style="background:#0c0c0c;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
+            <div style="text-align:center;padding:2rem;background:#181818;border:1px solid #333;border-radius:8px;">
+              <img src="${payload.avatar_url}" width="64" height="64" style="border-radius:50%;margin-bottom:1rem;border:2px solid #e50914;"/>
+              <h3 style="margin:0 0 0.5rem 0;color:#fff;">Hoş Geldin @${payload.login}!</h3>
+              <p style="color:#aaa;font-size:14px;margin-bottom:1rem;">GitHub hesabınızla başarıyla giriş yapıldı.</p>
+              <script>
+                if (window.opener) {
+                  window.opener.postMessage({ type: 'GITHUB_AUTH_SUCCESS', githubUser: ${JSON.stringify(payload)} }, '*');
+                  setTimeout(function() { window.close(); }, 800);
+                } else {
+                  window.location.href = '/';
+                }
+              </script>
+            </div>
+          </body>
+        </html>
+      `);
+    } catch (err: any) {
+      res.status(500).send(`
+        <html>
+          <body style="background:#111;color:#fff;font-family:sans-serif;padding:2rem;text-align:center;">
+            <h2>Giriş Hatası</h2>
+            <p>${err.message || "GitHub yetkilendirme hatası."}</p>
+            <button onclick="window.close()" style="padding:10px 20px;background:#e50914;color:#fff;border:none;border-radius:4px;cursor:pointer;">Kapat</button>
+          </body>
+        </html>
+      `);
+    }
+  };
+
+  app.get(["/api/auth/github/callback", "/api/auth/github/callback/"], handleGithubCallback);
+
+  // API Route: Public GitHub Profile Lookup
+  app.get("/api/github/user/:username", async (req, res) => {
+    try {
+      const { username } = req.params;
+      if (!username) return res.status(400).json({ error: "Username required" });
+
+      const ghRes = await fetch(`https://api.github.com/users/${encodeURIComponent(username.trim())}`, {
+        headers: {
+          "User-Agent": "Ayyildiz-Moto-Club-App",
+        },
+      });
+
+      if (!ghRes.ok) {
+        const clean = username.trim().toLowerCase();
+        return res.json({
+          login: clean,
+          name: username,
+          avatar_url: `https://github.com/${clean}.png`,
+          html_url: `https://github.com/${clean}`,
+          bio: "GitHub Kulüp Sürücüsü",
+          public_repos: 0
+        });
+      }
+
+      const data = await ghRes.json();
+      res.json({
+        id: String(data.id),
+        login: data.login,
+        name: data.name || data.login,
+        email: data.email || `${data.login}@users.noreply.github.com`,
+        avatar_url: data.avatar_url || `https://github.com/${data.login}.png`,
+        html_url: data.html_url || `https://github.com/${data.login}`,
+        bio: data.bio || "",
+        public_repos: data.public_repos || 0
+      });
+    } catch (error: any) {
+      const clean = req.params.username.trim().toLowerCase();
+      res.json({
+        login: clean,
+        name: req.params.username,
+        avatar_url: `https://github.com/${clean}.png`,
+        html_url: `https://github.com/${clean}`,
+        bio: "GitHub Kulüp Sürücüsü",
+        public_repos: 0
+      });
+    }
+  });
+
   // API Route: Register user and store their Google Access Token in Cloud SQL
   app.post("/api/auth/token", requireAuth, async (req: AuthRequest, res) => {
     try {

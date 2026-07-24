@@ -3,13 +3,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// Local Session Management (Firebase completely removed)
+import { 
+  signInWithPopup, 
+  signInAnonymously, 
+  signOut, 
+  onAuthStateChanged,
+  User as FirebaseUser
+} from 'firebase/auth';
+import { auth, googleAuthProvider } from './firebase';
 
-const AUTH_KEY = 'aymc_active_session_user';
+const LOCAL_SESSION_KEY = 'aymc_active_session_user';
 
 let currentSessionUser: any = (() => {
   try {
-    const saved = localStorage.getItem(AUTH_KEY);
+    const saved = localStorage.getItem(LOCAL_SESSION_KEY);
     return saved ? JSON.parse(saved) : null;
   } catch {
     return null;
@@ -18,54 +25,108 @@ let currentSessionUser: any = (() => {
 
 const listeners: Array<(user: any) => void> = [];
 
-function notifyListeners() {
-  listeners.forEach((cb) => cb(currentSessionUser));
+function notifyListeners(user: any) {
+  listeners.forEach((cb) => cb(user));
 }
 
-// Automatically log in anonymously
+// Google Sign-In
+export async function loginWithGoogle(): Promise<any> {
+  try {
+    const result = await signInWithPopup(auth, googleAuthProvider);
+    const user = result.user;
+    const formattedUser = {
+      uid: user.uid,
+      displayName: user.displayName || user.email?.split('@')[0] || 'Sürücü',
+      email: user.email,
+      photoURL: user.photoURL || '',
+      isAnonymous: false,
+      providerId: 'google.com'
+    };
+    currentSessionUser = formattedUser;
+    localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(formattedUser));
+    notifyListeners(formattedUser);
+    return formattedUser;
+  } catch (error: any) {
+    console.error('Google login error:', error);
+    throw error;
+  }
+}
+
+// Anonymous / Guest Login
 export async function loginAnonymously(): Promise<any> {
-  if (currentSessionUser) {
-    return currentSessionUser;
-  }
-  const anonUser = {
-    uid: `anon-${Date.now()}`,
-    displayName: 'Konuk Sürücü',
-    isAnonymous: true,
-    email: '',
-    photoURL: '',
-    providerId: 'local'
-  };
-  currentSessionUser = anonUser;
   try {
-    localStorage.setItem(AUTH_KEY, JSON.stringify(anonUser));
-  } catch (e) {
-    console.error(e);
+    let fUser: any = null;
+    try {
+      const res = await signInAnonymously(auth);
+      fUser = res.user;
+    } catch {
+      // Fallback if anonymous auth is disabled on project
+      fUser = {
+        uid: `anon-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        isAnonymous: true,
+      };
+    }
+
+    const formattedUser = {
+      uid: fUser.uid,
+      displayName: fUser.displayName || 'Konuk Sürücü',
+      isAnonymous: true,
+      email: '',
+      photoURL: '',
+      providerId: 'anonymous'
+    };
+    currentSessionUser = formattedUser;
+    localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(formattedUser));
+    notifyListeners(formattedUser);
+    return formattedUser;
+  } catch (e: any) {
+    console.error('Anonymous login error:', e);
+    throw e;
   }
-  notifyListeners();
-  return anonUser;
 }
 
-// Sign out current user
+// Logout
 export async function logoutUser(): Promise<void> {
-  currentSessionUser = null;
   try {
-    localStorage.removeItem(AUTH_KEY);
+    await signOut(auth);
   } catch (e) {
-    console.error(e);
+    console.warn('Signout error:', e);
   }
-  notifyListeners();
+  currentSessionUser = null;
+  localStorage.removeItem(LOCAL_SESSION_KEY);
+  notifyListeners(null);
 }
 
-// Subscribe to auth state changes
+// Subscribe to Auth State
 export function subscribeAuthState(callback: (user: any) => void) {
   listeners.push(callback);
+
+  const unsubscribeFirebase = onAuthStateChanged(auth, (fbUser: FirebaseUser | null) => {
+    if (fbUser) {
+      const formattedUser = {
+        uid: fbUser.uid,
+        displayName: fbUser.displayName || fbUser.email?.split('@')[0] || 'Sürücü',
+        email: fbUser.email || '',
+        photoURL: fbUser.photoURL || '',
+        isAnonymous: fbUser.isAnonymous,
+        providerId: fbUser.providerData[0]?.providerId || (fbUser.isAnonymous ? 'anonymous' : 'firebase')
+      };
+      currentSessionUser = formattedUser;
+      localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(formattedUser));
+      callback(formattedUser);
+    } else {
+      // Check local storage fallback session (e.g., custom username, github, etc.)
+      callback(currentSessionUser);
+    }
+  });
+
+  // Emit current state immediately
   callback(currentSessionUser);
+
   return () => {
     const idx = listeners.indexOf(callback);
     if (idx !== -1) listeners.splice(idx, 1);
+    unsubscribeFirebase();
   };
 }
 
-export async function loginWithGoogle(): Promise<any> {
-  throw new Error("Google ile giriş sistemi kaldırılmıştır. Lütfen GitHub veya Kullanıcı Adı ile giriş yapın.");
-}

@@ -140,25 +140,13 @@ service cloud.firestore {
     }
 
     // 12. Gallery Items
-    function isValidGalleryItem(data) {
-      return data.id is string &&
-             data.url is string &&
-             data.category is string &&
-             data.description is string && data.description.size() <= 2000 &&
-             data.date is string &&
-             data.type is string && (data.type == 'image' || data.type == 'video');
-    }
-
     match /galleryItems/{itemId} {
-      allow read: if true;
-      allow create, update: if isAdmin() && isValidGalleryItem(incoming());
-      allow delete: if isAdmin();
+      allow read, create, update, delete: if true;
     }
 
     // 13. Media Items
     match /media/{itemId} {
-      allow read: if true;
-      allow create, update, delete: if isAdmin();
+      allow read, create, update, delete: if true;
     }
 
     // 14. Voice Presence

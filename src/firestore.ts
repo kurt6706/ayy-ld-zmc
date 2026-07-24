@@ -3,20 +3,25 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { 
+  collection, 
+  doc, 
+  setDoc, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  onSnapshot, 
+  query, 
+  orderBy, 
+  limit, 
+  getDocFromServer,
+  serverTimestamp,
+  deleteField
+} from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType } from './firebase';
 import { ChatMessage, ChatUser, TypingState, VoiceChannel, VoiceMember } from './types';
 
-// Real-time local reactive store with BroadcastChannel synchronization
-const channel = typeof window !== 'undefined' && 'BroadcastChannel' in window 
-  ? new BroadcastChannel('aymc_realtime_channel') 
-  : null;
-
-function broadcast(type: string, payload?: any) {
-  if (channel) {
-    channel.postMessage({ type, payload });
-  }
-}
-
-// Helper to manage reactive local storage items
+// Helper for local storage backup
 function getLocalItem<T>(key: string, defaultValue: T): T {
   try {
     const item = localStorage.getItem(`aymc_fs_${key}`);
@@ -29,61 +34,57 @@ function getLocalItem<T>(key: string, defaultValue: T): T {
 function setLocalItem<T>(key: string, value: T) {
   try {
     localStorage.setItem(`aymc_fs_${key}`, JSON.stringify(value));
-    broadcast(key, value);
   } catch (err) {
-    console.error('Error saving local item:', key, err);
+    console.error('Local cache error:', err);
   }
-}
-
-// Store listeners
-const listeners: Record<string, Set<Function>> = {};
-
-function listenKey(key: string, callback: Function) {
-  if (!listeners[key]) listeners[key] = new Set();
-  listeners[key].add(callback);
-  return () => {
-    listeners[key]?.delete(callback);
-  };
-}
-
-function notifyKey(key: string) {
-  const data = getLocalItem(key, []);
-  listeners[key]?.forEach((cb) => cb(data));
-}
-
-if (channel) {
-  channel.onmessage = (event) => {
-    if (event.data && event.data.type) {
-      notifyKey(event.data.type);
-    }
-  };
-}
-
-if (typeof window !== 'undefined') {
-  window.addEventListener('storage', (e) => {
-    if (e.key && e.key.startsWith('aymc_fs_')) {
-      const key = e.key.replace('aymc_fs_', '');
-      notifyKey(key);
-    }
-  });
 }
 
 // Verification check
 export async function verifyFirestoreConnection(): Promise<boolean> {
-  return true;
+  try {
+    await getDocFromServer(doc(db, 'test', 'connection'));
+    return true;
+  } catch (err) {
+    console.warn('Firestore verification notice:', err);
+    return false;
+  }
 }
 
-// Subscribe to messages in real-time
-export function subscribeMessages(onUpdate: (messages: ChatMessage[]) => void, onError?: (errStr: string) => void) {
-  const fetchMessages = () => {
-    const msgs = getLocalItem<ChatMessage[]>('messages', []);
+// 1. CHAT MESSAGES
+export function subscribeMessages(
+  onUpdate: (messages: ChatMessage[]) => void, 
+  onError?: (errStr: string) => void
+) {
+  const q = query(collection(db, 'messages'), orderBy('createdAt', 'asc'), limit(200));
+  
+  return onSnapshot(q, (snapshot) => {
+    const msgs: ChatMessage[] = snapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        text: data.text || '',
+        senderName: data.senderName || 'İsimsiz',
+        senderUid: data.senderUid || '',
+        createdAt: data.createdAt?.toDate ? data.createdAt.toDate().getTime() : (data.createdAt || Date.now()),
+        photoURL: data.photoURL || '',
+        edited: !!data.edited,
+        deleted: !!data.deleted,
+        mediaType: data.mediaType || 'text',
+        audioUrl: data.audioUrl || '',
+        videoUrl: data.videoUrl || '',
+        imageUrl: data.imageUrl || ''
+      };
+    });
+    setLocalItem('messages', msgs);
     onUpdate(msgs);
-  };
-  fetchMessages();
-  return listenKey('messages', (msgs: ChatMessage[]) => onUpdate(msgs));
+  }, (error) => {
+    console.error('Messages Firestore error:', error);
+    if (onError) onError(error.message);
+    const cached = getLocalItem<ChatMessage[]>('messages', []);
+    onUpdate(cached);
+  });
 }
 
-// Send a new message
 export async function sendMessageDoc(
   text: string, 
   senderName: string, 
@@ -94,9 +95,7 @@ export async function sendMessageDoc(
   videoUrl?: string,
   imageUrl?: string
 ): Promise<string> {
-  const msgs = getLocalItem<ChatMessage[]>('messages', []);
-  const newMsg: ChatMessage = {
-    id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+  const msgData = {
     text: text.trim(),
     senderName,
     senderUid,
@@ -109,29 +108,39 @@ export async function sendMessageDoc(
     videoUrl: videoUrl || '',
     imageUrl: imageUrl || ''
   };
-  const updated = [...msgs, newMsg];
-  setLocalItem('messages', updated);
-  notifyKey('messages');
-  return newMsg.id;
+
+  try {
+    const docRef = await addDoc(collection(db, 'messages'), msgData);
+    return docRef.id;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, 'messages');
+    return '';
+  }
 }
 
-// Edit an existing message
 export async function editMessageDoc(messageId: string, newText: string): Promise<void> {
-  const msgs = getLocalItem<ChatMessage[]>('messages', []);
-  const updated = msgs.map((m) => m.id === messageId ? { ...m, text: newText.trim(), edited: true } : m);
-  setLocalItem('messages', updated);
-  notifyKey('messages');
+  try {
+    await updateDoc(doc(db, 'messages', messageId), {
+      text: newText.trim(),
+      edited: true
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `messages/${messageId}`);
+  }
 }
 
-// Delete an existing message
 export async function deleteMessageDoc(messageId: string): Promise<void> {
-  const msgs = getLocalItem<ChatMessage[]>('messages', []);
-  const updated = msgs.map((m) => m.id === messageId ? { ...m, text: 'Bu mesaj silindi.', deleted: true } : m);
-  setLocalItem('messages', updated);
-  notifyKey('messages');
+  try {
+    await updateDoc(doc(db, 'messages', messageId), {
+      text: 'Bu mesaj silindi.',
+      deleted: true
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `messages/${messageId}`);
+  }
 }
 
-// Update presence state of a user
+// 2. ACTIVE USER PRESENCE
 export async function updateUserPresence(
   uid: string, 
   displayName: string, 
@@ -141,8 +150,8 @@ export async function updateUserPresence(
   isOnline: boolean,
   statusText?: string
 ): Promise<void> {
-  const activeUsers = getLocalItem<Record<string, ChatUser>>('activeUsersMap', {});
-  activeUsers[uid] = {
+  if (!uid) return;
+  const userData: Partial<ChatUser> = {
     uid,
     displayName: displayName || 'İsimsiz',
     email: email || null,
@@ -152,57 +161,70 @@ export async function updateUserPresence(
     lastSeen: Date.now(),
     isOnline
   };
-  setLocalItem('activeUsersMap', activeUsers);
-  notifyKey('activeUsersMap');
+
+  try {
+    await setDoc(doc(db, 'activeUsers', uid), userData, { merge: true });
+  } catch (error) {
+    console.warn('Presence update error:', error);
+  }
 }
 
-// Subscribe to active/online users
 export function subscribeActiveUsers(onUpdate: (users: ChatUser[]) => void) {
-  const processAndEmit = () => {
-    const activeMap = getLocalItem<Record<string, ChatUser>>('activeUsersMap', {});
+  return onSnapshot(collection(db, 'activeUsers'), (snapshot) => {
     const now = Date.now();
-    const usersList: ChatUser[] = Object.values(activeMap).map((u) => ({
-      ...u,
-      isOnline: u.isOnline && (now - (u.lastSeen || 0) < 180000)
-    }));
+    const usersList: ChatUser[] = snapshot.docs.map(d => {
+      const u = d.data() as ChatUser;
+      return {
+        ...u,
+        isOnline: u.isOnline && (now - (u.lastSeen || 0) < 180000)
+      };
+    });
     usersList.sort((a, b) => {
       if (a.isOnline && !b.isOnline) return -1;
       if (!a.isOnline && b.isOnline) return 1;
       return (a.displayName || '').localeCompare(b.displayName || '');
     });
+    setLocalItem('activeUsersMap', usersList);
     onUpdate(usersList);
-  };
-
-  processAndEmit();
-  return listenKey('activeUsersMap', () => processAndEmit());
+  }, (err) => {
+    console.warn('Active users error:', err);
+    onUpdate(getLocalItem<ChatUser[]>('activeUsersMap', []));
+  });
 }
 
-// Set typing status
+// 3. TYPING STATUS
 export async function setTypingStatus(uid: string, name: string, isTyping: boolean): Promise<void> {
-  const typingMap = getLocalItem<Record<string, TypingState>>('typingMap', {});
-  if (isTyping) {
-    typingMap[uid] = { uid, name, isTyping: true, timestamp: Date.now() };
-  } else {
-    delete typingMap[uid];
+  if (!uid) return;
+  try {
+    if (isTyping) {
+      await setDoc(doc(db, 'typingState', uid), {
+        uid,
+        name,
+        isTyping: true,
+        timestamp: Date.now()
+      });
+    } else {
+      await deleteDoc(doc(db, 'typingState', uid));
+    }
+  } catch (e) {
+    console.warn('Typing state error:', e);
   }
-  setLocalItem('typingMap', typingMap);
-  notifyKey('typingMap');
 }
 
-// Subscribe to typing status
 export function subscribeTypingStates(onUpdate: (typingUsers: TypingState[]) => void) {
-  const emit = () => {
-    const typingMap = getLocalItem<Record<string, TypingState>>('typingMap', {});
+  return onSnapshot(collection(db, 'typingState'), (snapshot) => {
     const now = Date.now();
-    const activeTyping = Object.values(typingMap).filter((t) => t.isTyping && (now - (t.timestamp || 0) < 8000));
+    const activeTyping: TypingState[] = snapshot.docs
+      .map(d => d.data() as TypingState)
+      .filter(t => t.isTyping && (now - (t.timestamp || 0) < 8000));
     onUpdate(activeTyping);
-  };
-  emit();
-  return listenKey('typingMap', () => emit());
+  }, (err) => {
+    console.warn('Typing status error:', err);
+    onUpdate([]);
+  });
 }
 
-// --- VOICE SYSTEM FUNCTIONS ---
-
+// 4. VOICE SYSTEM
 export async function joinVoiceChannel(
   uid: string,
   displayName: string,
@@ -210,8 +232,8 @@ export async function joinVoiceChannel(
   channelId: string,
   role?: string
 ): Promise<void> {
-  const presenceMap = getLocalItem<Record<string, VoiceMember>>('voicePresenceMap', {});
-  presenceMap[uid] = {
+  if (!uid) return;
+  const presence: VoiceMember = {
     uid,
     displayName,
     photoURL: photoURL || undefined,
@@ -222,30 +244,35 @@ export async function joinVoiceChannel(
     lastActiveTime: Date.now(),
     role: role || 'member'
   };
-  setLocalItem('voicePresenceMap', presenceMap);
-  notifyKey('voicePresenceMap');
+
+  try {
+    await setDoc(doc(db, 'voicePresence', uid), presence);
+  } catch (e) {
+    console.warn('Voice join error:', e);
+  }
 }
 
 export async function leaveVoiceChannel(uid: string): Promise<void> {
-  const presenceMap = getLocalItem<Record<string, VoiceMember>>('voicePresenceMap', {});
-  delete presenceMap[uid];
-  setLocalItem('voicePresenceMap', presenceMap);
-  notifyKey('voicePresenceMap');
+  if (!uid) return;
+  try {
+    await deleteDoc(doc(db, 'voicePresence', uid));
+  } catch (e) {
+    console.warn('Voice leave error:', e);
+  }
 }
 
 export async function updateVoiceState(
   uid: string,
   states: { isMuted?: boolean; isDeafened?: boolean; isSpeaking?: boolean }
 ): Promise<void> {
-  const presenceMap = getLocalItem<Record<string, VoiceMember>>('voicePresenceMap', {});
-  if (presenceMap[uid]) {
-    presenceMap[uid] = {
-      ...presenceMap[uid],
+  if (!uid) return;
+  try {
+    await updateDoc(doc(db, 'voicePresence', uid), {
       ...states,
       lastActiveTime: Date.now()
-    };
-    setLocalItem('voicePresenceMap', presenceMap);
-    notifyKey('voicePresenceMap');
+    });
+  } catch (e) {
+    console.warn('Voice state update error:', e);
   }
 }
 
@@ -255,125 +282,131 @@ export async function sendVoicePacket(
   senderName: string,
   audioBase64: string
 ): Promise<void> {
-  const packet = {
-    id: `pkt-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-    channelId,
-    senderUid,
-    senderName,
-    audioData: audioBase64,
-    timestamp: Date.now()
-  };
-  broadcast('voice_packet', packet);
+  try {
+    await addDoc(collection(db, 'voicePackets'), {
+      channelId,
+      senderUid,
+      senderName,
+      audioData: audioBase64,
+      timestamp: Date.now()
+    });
+  } catch (e) {
+    console.warn('Send voice packet error:', e);
+  }
 }
 
 export function subscribeVoicePresence(onUpdate: (members: VoiceMember[]) => void) {
-  const emit = () => {
-    const presenceMap = getLocalItem<Record<string, VoiceMember>>('voicePresenceMap', {});
+  return onSnapshot(collection(db, 'voicePresence'), (snapshot) => {
     const now = Date.now();
-    const activeMembers = Object.values(presenceMap).filter((m) => now - (m.lastActiveTime || 0) < 300000);
-    onUpdate(activeMembers);
-  };
-  emit();
-  return listenKey('voicePresenceMap', () => emit());
+    const members: VoiceMember[] = snapshot.docs
+      .map(d => d.data() as VoiceMember)
+      .filter(m => now - (m.lastActiveTime || 0) < 300000);
+    onUpdate(members);
+  }, (err) => {
+    console.warn('Voice presence error:', err);
+    onUpdate([]);
+  });
 }
 
 export function subscribeVoicePackets(
   channelId: string,
   onNewPacket: (packet: { id: string; senderUid: string; senderName: string; audioData: string }) => void
 ) {
-  if (!channel) return () => {};
-  const handler = (event: MessageEvent) => {
-    if (event.data && event.data.type === 'voice_packet') {
-      const pkt = event.data.payload;
-      if (pkt && pkt.channelId === channelId) {
-        onNewPacket({
-          id: pkt.id,
-          senderUid: pkt.senderUid,
-          senderName: pkt.senderName,
-          audioData: pkt.audioData
-        });
+  const q = query(collection(db, 'voicePackets'), orderBy('timestamp', 'desc'), limit(1));
+  return onSnapshot(q, (snapshot) => {
+    snapshot.docChanges().forEach((change) => {
+      if (change.type === 'added') {
+        const data = change.doc.data();
+        if (data.channelId === channelId) {
+          onNewPacket({
+            id: change.doc.id,
+            senderUid: data.senderUid,
+            senderName: data.senderName,
+            audioData: data.audioData
+          });
+        }
       }
-    }
-  };
-  channel.addEventListener('message', handler);
-  return () => {
-    channel.removeEventListener('message', handler);
-  };
+    });
+  });
 }
 
 const DEFAULT_VOICE_CHANNELS: VoiceChannel[] = [
-  { id: 'genel-sohbet', name: '🔊 Genel Sohbet Oodası', description: 'Tüm kulüp üyeleri için serbest sohbet odası.', icon: 'Radio' },
+  { id: 'genel-sohbet', name: '🔊 Genel Sohbet Odası', description: 'Tüm kulüp üyeleri için serbest sohbet odası.', icon: 'Radio' },
   { id: 'surus-ekibi', name: '🏍️ Sürüş Ekibi (Telsiz Frekansı)', description: 'Aktif sürüş esnasındaki yol kaptanları ve gruptakiler için.', icon: 'Radio' },
   { id: 'yonetim-kurulu', name: '🛡️ Yönetim & Töre Konseyi', description: 'Sadece yetkili ve kule yöneticileri için özel kanal.', icon: 'Lock', roleRestriction: 'admin', isLocked: true }
 ];
 
 export function subscribeVoiceChannels(onUpdate: (channels: VoiceChannel[]) => void) {
-  const emit = () => {
-    const channels = getLocalItem<VoiceChannel[]>('voiceChannelsList', DEFAULT_VOICE_CHANNELS);
+  return onSnapshot(collection(db, 'voiceChannels'), (snapshot) => {
+    if (snapshot.empty) {
+      onUpdate(DEFAULT_VOICE_CHANNELS);
+      return;
+    }
+    const channels: VoiceChannel[] = snapshot.docs.map(d => ({
+      id: d.id,
+      ...d.data()
+    } as VoiceChannel));
     onUpdate(channels);
-  };
-  emit();
-  return listenKey('voiceChannelsList', () => emit());
+  }, (err) => {
+    console.warn('Voice channels subscribe error:', err);
+    onUpdate(DEFAULT_VOICE_CHANNELS);
+  });
 }
 
 export async function createVoiceChannel(channelObj: VoiceChannel): Promise<void> {
-  const channels = getLocalItem<VoiceChannel[]>('voiceChannelsList', DEFAULT_VOICE_CHANNELS);
-  const updated = [...channels, { ...channelObj, isStatic: false }];
-  setLocalItem('voiceChannelsList', updated);
-  notifyKey('voiceChannelsList');
+  try {
+    await setDoc(doc(db, 'voiceChannels', channelObj.id), channelObj);
+  } catch (e) {
+    handleFirestoreError(e, OperationType.CREATE, `voiceChannels/${channelObj.id}`);
+  }
 }
 
 export async function deleteVoiceChannel(channelId: string): Promise<void> {
-  const channels = getLocalItem<VoiceChannel[]>('voiceChannelsList', DEFAULT_VOICE_CHANNELS);
-  const updated = channels.filter((c) => c.id !== channelId);
-  setLocalItem('voiceChannelsList', updated);
-  notifyKey('voiceChannelsList');
+  try {
+    await deleteDoc(doc(db, 'voiceChannels', channelId));
+  } catch (e) {
+    handleFirestoreError(e, OperationType.DELETE, `voiceChannels/${channelId}`);
+  }
 }
 
 export async function editVoiceChannel(channelId: string, updates: Partial<VoiceChannel>): Promise<void> {
-  const channels = getLocalItem<VoiceChannel[]>('voiceChannelsList', DEFAULT_VOICE_CHANNELS);
-  const updated = channels.map((c) => c.id === channelId ? { ...c, ...updates } : c);
-  setLocalItem('voiceChannelsList', updated);
-  notifyKey('voiceChannelsList');
+  try {
+    await updateDoc(doc(db, 'voiceChannels', channelId), updates);
+  } catch (e) {
+    handleFirestoreError(e, OperationType.UPDATE, `voiceChannels/${channelId}`);
+  }
 }
 
 export async function setServerMutedState(uid: string, isServerMuted: boolean): Promise<void> {
-  const presenceMap = getLocalItem<Record<string, VoiceMember>>('voicePresenceMap', {});
-  if (presenceMap[uid]) {
-    presenceMap[uid] = {
-      ...presenceMap[uid],
+  if (!uid) return;
+  try {
+    await updateDoc(doc(db, 'voicePresence', uid), {
       isServerMuted,
-      isMuted: isServerMuted ? true : presenceMap[uid].isMuted,
+      isMuted: isServerMuted ? true : false,
       lastActiveTime: Date.now()
-    };
-    setLocalItem('voicePresenceMap', presenceMap);
-    notifyKey('voicePresenceMap');
+    });
+  } catch (e) {
+    console.warn('Server mute error:', e);
   }
 }
 
 export async function kickUserFromVoice(uid: string): Promise<void> {
-  const presenceMap = getLocalItem<Record<string, VoiceMember>>('voicePresenceMap', {});
-  if (presenceMap[uid]) {
-    presenceMap[uid] = {
-      ...presenceMap[uid],
-      activeChannelId: null,
-      isSpeaking: false,
-      lastActiveTime: Date.now()
-    };
-    setLocalItem('voicePresenceMap', presenceMap);
-    notifyKey('voicePresenceMap');
+  if (!uid) return;
+  try {
+    await deleteDoc(doc(db, 'voicePresence', uid));
+  } catch (e) {
+    console.warn('Kick voice error:', e);
   }
 }
 
 export async function moveUserToChannel(uid: string, channelId: string): Promise<void> {
-  const presenceMap = getLocalItem<Record<string, VoiceMember>>('voicePresenceMap', {});
-  if (presenceMap[uid]) {
-    presenceMap[uid] = {
-      ...presenceMap[uid],
+  if (!uid) return;
+  try {
+    await updateDoc(doc(db, 'voicePresence', uid), {
       activeChannelId: channelId,
       lastActiveTime: Date.now()
-    };
-    setLocalItem('voicePresenceMap', presenceMap);
-    notifyKey('voicePresenceMap');
+    });
+  } catch (e) {
+    console.warn('Move user error:', e);
   }
 }

@@ -1,450 +1,384 @@
 /**
- * Hostinger MySQL PHP API Data Service Layer
- * Fully replaces Firebase Firestore & Storage.
- * Connects directly to https://aymk.org/api/
+ * Firebase Firestore & Storage Data Service Layer
+ * Fully integrated for Ayyıldız Motosiklet Kulübü (AYMK)
  */
 
+import { 
+  collection, 
+  doc, 
+  setDoc, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  onSnapshot, 
+  query, 
+  orderBy, 
+  getDocs 
+} from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage, handleFirestoreError, OperationType } from '../firebase';
 import { Event, Route, BlogPost, UserPost, GalleryItem, Meeting, User } from '../types';
-import { DEFAULT_EVENTS, DEFAULT_ROUTES, DEFAULT_BLOG, DEFAULT_GALLERY_ITEMS } from '../data';
-import {
-  apiGetUsers, apiSaveUser, apiDeleteUser,
-  apiGetEvents, apiSaveEvent, apiDeleteEvent,
-  apiGetRoutes, apiSaveRoute, apiDeleteRoute,
-  apiGetBlogPosts, apiSaveBlogPost, apiDeleteBlogPost,
-  apiGetUserPosts, apiSaveUserPost, apiDeleteUserPost,
-  apiGetGalleryItems, apiSaveGalleryItem, apiDeleteGalleryItem,
-  apiGetAnnouncements, apiSaveAnnouncement, apiDeleteAnnouncement,
-  apiGetDirectMessages, apiSendDirectMessage,
-  apiGetMeetings, apiSaveMeeting, apiDeleteMeeting,
-  uploadMediaToHostinger
-} from './phpApiService';
+import { DEFAULT_EVENTS, DEFAULT_ROUTES, DEFAULT_BLOG, DEFAULT_GALLERY_ITEMS, DEFAULT_USERS } from '../data';
 
-const channel = typeof window !== 'undefined' && 'BroadcastChannel' in window 
-  ? new BroadcastChannel('aymc_service_channel') 
-  : null;
-
-function broadcast(type: string, payload?: any) {
-  if (channel) {
-    channel.postMessage({ type, payload });
-  }
-}
-
-function getStoreItem<T>(key: string, defaultValue: T): T {
-  try {
-    const item = localStorage.getItem(`aymc_svc_${key}`);
-    return item ? JSON.parse(item) : defaultValue;
-  } catch {
-    return defaultValue;
-  }
-}
-
-function setStoreItem<T>(key: string, value: T) {
-  try {
-    localStorage.setItem(`aymc_svc_${key}`, JSON.stringify(value));
-    broadcast(key, value);
-  } catch (err) {
-    console.error('Error setting store item:', key, err);
-  }
-}
-
-const listeners: Record<string, Set<Function>> = {};
-
-function listenKey(key: string, callback: Function) {
-  if (!listeners[key]) listeners[key] = new Set();
-  listeners[key].add(callback);
-  return () => {
-    listeners[key]?.delete(callback);
-  };
-}
-
-function notifyKey(key: string) {
-  const data = getStoreItem(key, []);
-  listeners[key]?.forEach((cb) => cb(data));
-}
-
-if (channel) {
-  channel.onmessage = (event) => {
-    if (event.data && event.data.type) {
-      notifyKey(event.data.type);
-    }
-  };
-}
-
-if (typeof window !== 'undefined') {
-  window.addEventListener('storage', (e) => {
-    if (e.key && e.key.startsWith('aymc_svc_')) {
-      const key = e.key.replace('aymc_svc_', '');
-      notifyKey(key);
-    }
-  });
-}
-
+// Connection test
 export async function testFirestoreConnection() {
   return true;
 }
 
-const DEFAULT_USERS: User[] = [
-  {
-    id: 'admin-1',
-    name: 'Kurtuluş',
-    surname: 'Düzlü',
-    username: 'kurt',
-    password: 'kurt123',
-    role: 'admin',
-    status: 'approved',
-    statusText: 'Kurucu Üye / Töre Muhafızı',
-    avatarUrl: 'https://github.com/kduzlu.png',
-    profile: {},
-    privacy: {}
-  },
-  {
-    id: 'admin-default',
-    name: 'Yönetici',
-    surname: 'Sistem',
-    username: 'admin',
-    password: 'password',
-    role: 'admin',
-    status: 'approved',
-    statusText: 'Sistem Yöneticisi',
-    avatarUrl: '',
-    profile: {},
-    privacy: {}
-  },
-  {
-    id: 'member-1',
-    name: 'Alperen',
-    surname: 'Kaya',
-    username: 'alperen',
-    password: '123',
-    role: 'member',
-    status: 'approved',
-    statusText: 'Yol Kaptanı',
-    avatarUrl: '',
-    profile: {},
-    privacy: {}
-  }
-];
-
+// Bootstrap initial default items into Firestore if empty
 export async function bootstrapDatabaseIfEmpty() {
-  if (!localStorage.getItem('aymc_svc_users')) {
-    setStoreItem('users', DEFAULT_USERS);
-  }
-  if (!localStorage.getItem('aymc_svc_events')) {
-    setStoreItem('events', DEFAULT_EVENTS);
-  }
-  if (!localStorage.getItem('aymc_svc_routes')) {
-    setStoreItem('routes', DEFAULT_ROUTES);
-  }
-  if (!localStorage.getItem('aymc_svc_blogPosts')) {
-    setStoreItem('blogPosts', DEFAULT_BLOG);
-  }
-  if (!localStorage.getItem('aymc_svc_galleryItems')) {
-    setStoreItem('galleryItems', DEFAULT_GALLERY_ITEMS);
-  }
-
-  // Sync with Hostinger MySQL backend asynchronously
-  apiGetUsers().then((remoteUsers) => {
-    if (remoteUsers && remoteUsers.length > 0) {
-      setStoreItem('users', remoteUsers);
-      notifyKey('users');
+  try {
+    const usersSnap = await getDocs(collection(db, 'users'));
+    if (usersSnap.empty) {
+      for (const usr of DEFAULT_USERS) {
+        await setDoc(doc(db, 'users', usr.id), usr);
+      }
     }
-  }).catch(() => {});
 
-  apiGetEvents().then((remoteEvents) => {
-    if (remoteEvents && remoteEvents.length > 0) {
-      setStoreItem('events', remoteEvents);
-      notifyKey('events');
+    const eventsSnap = await getDocs(collection(db, 'events'));
+    if (eventsSnap.empty) {
+      for (const ev of DEFAULT_EVENTS) {
+        await setDoc(doc(db, 'events', ev.id), ev);
+      }
     }
-  }).catch(() => {});
 
-  apiGetBlogPosts().then((remotePosts) => {
-    if (remotePosts && remotePosts.length > 0) {
-      setStoreItem('blogPosts', remotePosts);
-      notifyKey('blogPosts');
+    const routesSnap = await getDocs(collection(db, 'routes'));
+    if (routesSnap.empty) {
+      for (const rt of DEFAULT_ROUTES) {
+        await setDoc(doc(db, 'routes', rt.id), rt);
+      }
     }
-  }).catch(() => {});
 
-  apiGetGalleryItems().then((remoteGallery) => {
-    if (remoteGallery && remoteGallery.length > 0) {
-      setStoreItem('galleryItems', remoteGallery);
-      notifyKey('galleryItems');
+    const blogSnap = await getDocs(collection(db, 'blogPosts'));
+    if (blogSnap.empty) {
+      for (const bp of DEFAULT_BLOG) {
+        await setDoc(doc(db, 'blogPosts', bp.id), bp);
+      }
     }
-  }).catch(() => {});
+
+    const gallerySnap = await getDocs(collection(db, 'galleryItems'));
+    if (gallerySnap.empty) {
+      for (const gi of DEFAULT_GALLERY_ITEMS) {
+        await setDoc(doc(db, 'galleryItems', gi.id), gi);
+      }
+    }
+  } catch (err) {
+    console.warn('Bootstrap database check error:', err);
+  }
 }
 
-// USERS
+// 1. USERS
 export function subscribeUsers(onUpdate: (users: User[]) => void) {
-  const users = getStoreItem('users', DEFAULT_USERS);
-  onUpdate(users);
-  return listenKey('users', (data: User[]) => onUpdate(data));
+  return onSnapshot(collection(db, 'users'), (snapshot) => {
+    const users: User[] = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as User));
+    if (users.length === 0) {
+      onUpdate(DEFAULT_USERS);
+    } else {
+      // Merge with DEFAULT_USERS so default accounts are never lost
+      const userMap = new Map<string, User>();
+      DEFAULT_USERS.forEach(u => userMap.set(u.id, u));
+      users.forEach(u => userMap.set(u.id, u));
+      onUpdate(Array.from(userMap.values()));
+    }
+  }, (err) => {
+    console.warn('Users subscribe error:', err);
+    onUpdate(DEFAULT_USERS);
+  });
 }
 
 export async function addOrUpdateUser(user: User): Promise<void> {
-  const users = getStoreItem<User[]>('users', DEFAULT_USERS);
-  const idx = users.findIndex((u) => u.id === user.id);
-  let updated: User[];
-  if (idx !== -1) {
-    updated = [...users];
-    updated[idx] = { ...updated[idx], ...user };
-  } else {
-    updated = [...users, user];
+  try {
+    await setDoc(doc(db, 'users', user.id), user, { merge: true });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `users/${user.id}`);
   }
-  setStoreItem('users', updated);
-  notifyKey('users');
-  apiSaveUser(user).catch(() => {});
 }
 
 export async function deleteUserDoc(userId: string): Promise<void> {
-  const users = getStoreItem<User[]>('users', DEFAULT_USERS);
-  const updated = users.filter((u) => u.id !== userId);
-  setStoreItem('users', updated);
-  notifyKey('users');
-  apiDeleteUser(userId).catch(() => {});
+  try {
+    await deleteDoc(doc(db, 'users', userId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `users/${userId}`);
+  }
 }
 
-// EVENTS
+// 2. EVENTS
 export function subscribeEvents(onUpdate: (events: Event[]) => void) {
-  const events = getStoreItem('events', DEFAULT_EVENTS);
-  onUpdate(events);
-  return listenKey('events', (data: Event[]) => onUpdate(data));
+  return onSnapshot(collection(db, 'events'), (snapshot) => {
+    const events: Event[] = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Event));
+    if (events.length === 0) {
+      onUpdate(DEFAULT_EVENTS);
+    } else {
+      const eventMap = new Map<string, Event>();
+      DEFAULT_EVENTS.forEach(ev => eventMap.set(ev.id, ev));
+      events.forEach(ev => eventMap.set(ev.id, ev));
+      onUpdate(Array.from(eventMap.values()));
+    }
+  }, (err) => {
+    console.warn('Events subscribe error:', err);
+    onUpdate(DEFAULT_EVENTS);
+  });
 }
 
 export async function addOrUpdateEvent(event: Event): Promise<void> {
-  const events = getStoreItem<Event[]>('events', DEFAULT_EVENTS);
-  const idx = events.findIndex((e) => e.id === event.id);
-  let updated: Event[];
-  if (idx !== -1) {
-    updated = [...events];
-    updated[idx] = { ...updated[idx], ...event };
-  } else {
-    updated = [...events, event];
+  try {
+    await setDoc(doc(db, 'events', event.id), event, { merge: true });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `events/${event.id}`);
   }
-  setStoreItem('events', updated);
-  notifyKey('events');
-  apiSaveEvent(event).catch(() => {});
 }
 
 export async function deleteEventDoc(eventId: string): Promise<void> {
-  const events = getStoreItem<Event[]>('events', DEFAULT_EVENTS);
-  const updated = events.filter((e) => e.id !== eventId);
-  setStoreItem('events', updated);
-  notifyKey('events');
-  apiDeleteEvent(eventId).catch(() => {});
+  try {
+    await deleteDoc(doc(db, 'events', eventId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `events/${eventId}`);
+  }
 }
 
-// ROUTES
+// 3. ROUTES
 export function subscribeRoutes(onUpdate: (routes: Route[]) => void) {
-  const routes = getStoreItem('routes', DEFAULT_ROUTES);
-  onUpdate(routes);
-  return listenKey('routes', (data: Route[]) => onUpdate(data));
+  return onSnapshot(collection(db, 'routes'), (snapshot) => {
+    const routes: Route[] = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Route));
+    if (routes.length === 0) {
+      onUpdate(DEFAULT_ROUTES);
+    } else {
+      const routeMap = new Map<string, Route>();
+      DEFAULT_ROUTES.forEach(rt => routeMap.set(rt.id, rt));
+      routes.forEach(rt => routeMap.set(rt.id, rt));
+      onUpdate(Array.from(routeMap.values()));
+    }
+  }, (err) => {
+    console.warn('Routes subscribe error:', err);
+    onUpdate(DEFAULT_ROUTES);
+  });
 }
 
 export async function addOrUpdateRoute(route: Route): Promise<void> {
-  const routes = getStoreItem<Route[]>('routes', DEFAULT_ROUTES);
-  const idx = routes.findIndex((r) => r.id === route.id);
-  let updated: Route[];
-  if (idx !== -1) {
-    updated = [...routes];
-    updated[idx] = { ...updated[idx], ...route };
-  } else {
-    updated = [...routes, route];
+  try {
+    await setDoc(doc(db, 'routes', route.id), route, { merge: true });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `routes/${route.id}`);
   }
-  setStoreItem('routes', updated);
-  notifyKey('routes');
-  apiSaveRoute(route).catch(() => {});
 }
 
 export async function deleteRouteDoc(routeId: string): Promise<void> {
-  const routes = getStoreItem<Route[]>('routes', DEFAULT_ROUTES);
-  const updated = routes.filter((r) => r.id !== routeId);
-  setStoreItem('routes', updated);
-  notifyKey('routes');
-  apiDeleteRoute(routeId).catch(() => {});
+  try {
+    await deleteDoc(doc(db, 'routes', routeId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `routes/${routeId}`);
+  }
 }
 
-// BLOG POSTS / NEWS
+// 4. BLOG POSTS / NEWS
 export function subscribeBlogPosts(onUpdate: (posts: BlogPost[]) => void) {
-  const blogPosts = getStoreItem('blogPosts', DEFAULT_BLOG);
-  onUpdate(blogPosts);
-  return listenKey('blogPosts', (data: BlogPost[]) => onUpdate(data));
+  return onSnapshot(collection(db, 'blogPosts'), (snapshot) => {
+    const posts: BlogPost[] = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as BlogPost));
+    onUpdate(posts);
+  }, (err) => {
+    console.warn('Blog posts subscribe error:', err);
+    onUpdate(DEFAULT_BLOG);
+  });
 }
 
 export async function addOrUpdateBlogPost(post: BlogPost): Promise<void> {
-  const posts = getStoreItem<BlogPost[]>('blogPosts', DEFAULT_BLOG);
-  const idx = posts.findIndex((p) => p.id === post.id);
-  let updated: BlogPost[];
-  if (idx !== -1) {
-    updated = [...posts];
-    updated[idx] = { ...updated[idx], ...post };
-  } else {
-    updated = [post, ...posts];
+  try {
+    await setDoc(doc(db, 'blogPosts', post.id), post, { merge: true });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `blogPosts/${post.id}`);
   }
-  setStoreItem('blogPosts', updated);
-  notifyKey('blogPosts');
-  apiSaveBlogPost(post).catch(() => {});
 }
 
 export async function deleteBlogPostDoc(postId: string): Promise<void> {
-  const posts = getStoreItem<BlogPost[]>('blogPosts', DEFAULT_BLOG);
-  const updated = posts.filter((p) => p.id !== postId);
-  setStoreItem('blogPosts', updated);
-  notifyKey('blogPosts');
-  apiDeleteBlogPost(postId).catch(() => {});
+  try {
+    await deleteDoc(doc(db, 'blogPosts', postId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `blogPosts/${postId}`);
+  }
 }
 
-// USER POSTS / FORUM
+// 5. USER POSTS / FORUM
 export function subscribeUserPosts(onUpdate: (posts: UserPost[]) => void) {
-  const userPosts = getStoreItem<UserPost[]>('userPosts', []);
-  onUpdate(userPosts);
-  return listenKey('userPosts', (data: UserPost[]) => onUpdate(data));
+  return onSnapshot(collection(db, 'userPosts'), (snapshot) => {
+    const posts: UserPost[] = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as UserPost));
+    onUpdate(posts);
+  }, (err) => {
+    console.warn('User posts subscribe error:', err);
+  });
 }
 
 export async function addOrUpdateUserPost(post: UserPost): Promise<void> {
-  const posts = getStoreItem<UserPost[]>('userPosts', []);
-  const idx = posts.findIndex((p) => p.id === post.id);
-  let updated: UserPost[];
-  if (idx !== -1) {
-    updated = [...posts];
-    updated[idx] = { ...updated[idx], ...post };
-  } else {
-    updated = [post, ...posts];
+  try {
+    await setDoc(doc(db, 'userPosts', post.id), post, { merge: true });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `userPosts/${post.id}`);
   }
-  setStoreItem('userPosts', updated);
-  notifyKey('userPosts');
-  apiSaveUserPost(post).catch(() => {});
 }
 
 export async function deleteUserPostDoc(postId: string): Promise<void> {
-  const posts = getStoreItem<UserPost[]>('userPosts', []);
-  const updated = posts.filter((p) => p.id !== postId);
-  setStoreItem('userPosts', updated);
-  notifyKey('userPosts');
-  apiDeleteUserPost(postId).catch(() => {});
+  try {
+    await deleteDoc(doc(db, 'userPosts', postId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `userPosts/${postId}`);
+  }
 }
 
-// GALLERY ITEMS
+// 6. GALLERY ITEMS
 export function subscribeGalleryItems(onUpdate: (items: GalleryItem[]) => void) {
-  const items = getStoreItem('galleryItems', DEFAULT_GALLERY_ITEMS);
-  onUpdate(items);
-  return listenKey('galleryItems', (data: GalleryItem[]) => onUpdate(data));
+  return onSnapshot(collection(db, 'galleryItems'), (snapshot) => {
+    const firestoreItems = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as any));
+    
+    const itemMap = new Map<string, GalleryItem>();
+    DEFAULT_GALLERY_ITEMS.forEach(gi => itemMap.set(gi.id, gi));
+
+    firestoreItems.forEach(d => {
+      if (d.deleted) {
+        itemMap.delete(d.id);
+      } else {
+        itemMap.set(d.id, d as GalleryItem);
+      }
+    });
+
+    onUpdate(Array.from(itemMap.values()).filter(item => !(item as any).deleted));
+  }, (err) => {
+    console.warn('Gallery subscribe error:', err);
+    onUpdate(DEFAULT_GALLERY_ITEMS);
+  });
 }
 
 export async function addOrUpdateGalleryItem(item: GalleryItem): Promise<void> {
-  const items = getStoreItem<GalleryItem[]>('galleryItems', DEFAULT_GALLERY_ITEMS);
-  const idx = items.findIndex((i) => i.id === item.id);
-  let updated: GalleryItem[];
-  if (idx !== -1) {
-    updated = [...items];
-    updated[idx] = { ...updated[idx], ...item };
-  } else {
-    updated = [item, ...items];
+  try {
+    const cleanItem = { ...item, deleted: false };
+    await setDoc(doc(db, 'galleryItems', item.id), cleanItem, { merge: true });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `galleryItems/${item.id}`);
   }
-  setStoreItem('galleryItems', updated);
-  notifyKey('galleryItems');
-  apiSaveGalleryItem(item).catch(() => {});
 }
 
 export async function deleteGalleryItemDoc(itemId: string): Promise<void> {
-  const items = getStoreItem<GalleryItem[]>('galleryItems', DEFAULT_GALLERY_ITEMS);
-  const updated = items.filter((i) => i.id !== itemId);
-  setStoreItem('galleryItems', updated);
-  notifyKey('galleryItems');
-  apiDeleteGalleryItem(itemId).catch(() => {});
+  try {
+    await setDoc(doc(db, 'galleryItems', itemId), { id: itemId, deleted: true }, { merge: true });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `galleryItems/${itemId}`);
+  }
 }
 
-// ANNOUNCEMENTS
+// 7. ANNOUNCEMENTS
 export function subscribeAnnouncements(onUpdate: (items: any[]) => void) {
-  const announcements = getStoreItem<any[]>('announcements', []);
-  onUpdate(announcements);
-  return listenKey('announcements', (data: any[]) => onUpdate(data));
+  return onSnapshot(collection(db, 'announcements'), (snapshot) => {
+    const items = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    onUpdate(items);
+  }, (err) => {
+    console.warn('Announcements subscribe error:', err);
+  });
 }
 
 export async function addOrUpdateAnnouncement(announcement: any): Promise<void> {
-  const announcements = getStoreItem<any[]>('announcements', []);
-  const idx = announcements.findIndex((a) => a.id === announcement.id);
-  let updated: any[];
-  if (idx !== -1) {
-    updated = [...announcements];
-    updated[idx] = { ...updated[idx], ...announcement };
-  } else {
-    updated = [announcement, ...announcements];
+  try {
+    await setDoc(doc(db, 'announcements', announcement.id), announcement, { merge: true });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `announcements/${announcement.id}`);
   }
-  setStoreItem('announcements', updated);
-  notifyKey('announcements');
-  apiSaveAnnouncement(announcement).catch(() => {});
 }
 
 export async function deleteAnnouncementDoc(announcementId: string): Promise<void> {
-  const announcements = getStoreItem<any[]>('announcements', []);
-  const updated = announcements.filter((a) => a.id !== announcementId);
-  setStoreItem('announcements', updated);
-  notifyKey('announcements');
-  apiDeleteAnnouncement(announcementId).catch(() => {});
+  try {
+    await deleteDoc(doc(db, 'announcements', announcementId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `announcements/${announcementId}`);
+  }
 }
 
-// DIRECT MESSAGES
+// 8. DIRECT MESSAGES
 export function subscribeDirectMessages(onUpdate: (msgs: any[]) => void) {
-  const msgs = getStoreItem<any[]>('directMessages', []);
-  onUpdate(msgs);
-  return listenKey('directMessages', (data: any[]) => onUpdate(data));
+  return onSnapshot(collection(db, 'directMessages'), (snapshot) => {
+    const msgs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    onUpdate(msgs);
+  }, (err) => {
+    console.warn('Direct messages error:', err);
+  });
 }
 
 export async function addDirectMessageDoc(message: any): Promise<void> {
-  const msgs = getStoreItem<any[]>('directMessages', []);
-  const updated = [...msgs, message];
-  setStoreItem('directMessages', updated);
-  notifyKey('directMessages');
-  apiSendDirectMessage(message).catch(() => {});
+  try {
+    const docId = message.id || `dm-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    await setDoc(doc(db, 'directMessages', docId), { ...message, id: docId });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, 'directMessages');
+  }
 }
 
 export async function markDirectMessageAsRead(msgId: string): Promise<void> {
-  const msgs = getStoreItem<any[]>('directMessages', []);
-  const updated = msgs.map((m) => m.id === msgId ? { ...m, read: true } : m);
-  setStoreItem('directMessages', updated);
-  notifyKey('directMessages');
+  try {
+    await updateDoc(doc(db, 'directMessages', msgId), { read: true });
+  } catch (error) {
+    console.warn('Mark message read error:', error);
+  }
 }
 
 export async function markDirectMessagesAsRead(senderIdOrIds: string[] | string, receiverId?: string): Promise<void> {
-  const msgs = getStoreItem<any[]>('directMessages', []);
-  let updated: any[];
-  if (receiverId && typeof senderIdOrIds === 'string') {
-    updated = msgs.map((m) => (m.senderId === senderIdOrIds && m.receiverId === receiverId) ? { ...m, read: true } : m);
-  } else {
+  try {
     const ids = Array.isArray(senderIdOrIds) ? senderIdOrIds : [senderIdOrIds];
-    updated = msgs.map((m) => ids.includes(m.id) ? { ...m, read: true } : m);
+    for (const id of ids) {
+      await updateDoc(doc(db, 'directMessages', id), { read: true }).catch(() => {});
+    }
+  } catch (error) {
+    console.warn('Mark messages read error:', error);
   }
-  setStoreItem('directMessages', updated);
-  notifyKey('directMessages');
 }
 
-// MEETINGS
+// 9. MEETINGS
 export function subscribeMeetings(onUpdate: (meetings: Meeting[]) => void) {
-  const meetings = getStoreItem<Meeting[]>('meetings', []);
-  onUpdate(meetings);
-  return listenKey('meetings', (data: Meeting[]) => onUpdate(data));
+  return onSnapshot(collection(db, 'meetings'), (snapshot) => {
+    const meetings: Meeting[] = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Meeting));
+    onUpdate(meetings);
+  }, (err) => {
+    console.warn('Meetings subscribe error:', err);
+  });
 }
 
 export async function addOrUpdateMeeting(meeting: Meeting): Promise<void> {
-  const meetings = getStoreItem<Meeting[]>('meetings', []);
-  const idx = meetings.findIndex((m) => m.id === meeting.id);
-  let updated: Meeting[];
-  if (idx !== -1) {
-    updated = [...meetings];
-    updated[idx] = { ...updated[idx], ...meeting };
-  } else {
-    updated = [meeting, ...meetings];
+  try {
+    await setDoc(doc(db, 'meetings', meeting.id), meeting, { merge: true });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `meetings/${meeting.id}`);
   }
-  setStoreItem('meetings', updated);
-  notifyKey('meetings');
-  apiSaveMeeting(meeting).catch(() => {});
 }
 
 export async function deleteMeetingDoc(meetingId: string): Promise<void> {
-  const meetings = getStoreItem<Meeting[]>('meetings', []);
-  const updated = meetings.filter((m) => m.id !== meetingId);
-  setStoreItem('meetings', updated);
-  notifyKey('meetings');
-  apiDeleteMeeting(meetingId).catch(() => {});
+  try {
+    await deleteDoc(doc(db, 'meetings', meetingId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `meetings/${meetingId}`);
+  }
 }
 
-export { uploadMediaToHostinger };
+// 10. MEDIA / FILE UPLOADS (Firebase Storage with Hostinger / Data URL Fallback)
+export async function uploadMediaToFirebase(file: File, folder: string = 'gallery'): Promise<string> {
+  const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '')}`;
+  const storageRef = ref(storage, `${folder}/${fileName}`);
+
+  try {
+    const snapshot = await uploadBytes(storageRef, file);
+    const downloadUrl = await getDownloadURL(snapshot.ref);
+    return downloadUrl;
+  } catch (error) {
+    console.warn('Firebase Storage upload failed, converting file locally:', error);
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = (err) => reject(err);
+      reader.readAsDataURL(file);
+    });
+  }
+}
+
+export async function uploadMediaToHostinger(file: File, type: 'image' | 'video' = 'image'): Promise<{ url: string; fileName: string }> {
+  try {
+    const url = await uploadMediaToFirebase(file, type === 'video' ? 'videos' : 'images');
+    return { url, fileName: file.name };
+  } catch (err) {
+    console.error('Upload failed:', err);
+    throw err;
+  }
+}

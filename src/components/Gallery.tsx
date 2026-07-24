@@ -347,6 +347,29 @@ export default function Gallery({ currentUser }: GalleryProps) {
                   value={editingItem.description}
                   onChange={(e) => setEditingItem({...editingItem, description: e.target.value})}
                   className="w-full bg-[#1a1a1a] border border-neutral-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand"
+                  placeholder="Açıklama giriniz..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-2 font-sans">Medya Bağlantısı (URL)</label>
+                <input
+                  type="text"
+                  value={editingItem.url}
+                  onChange={(e) => setEditingItem({...editingItem, url: e.target.value})}
+                  className="w-full bg-[#1a1a1a] border border-neutral-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand text-xs font-mono"
+                  placeholder="https://..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-2 font-sans">Yükleyen Sürücü / Üye</label>
+                <input
+                  type="text"
+                  value={editingItem.uploadedBy || ''}
+                  onChange={(e) => setEditingItem({...editingItem, uploadedBy: e.target.value})}
+                  className="w-full bg-[#1a1a1a] border border-neutral-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand"
+                  placeholder="Örn: Kurtuluş Düzlü"
                 />
               </div>
 

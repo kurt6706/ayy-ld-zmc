@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Event, Route, BlogPost, ClubRule, HandSignal, MembershipApplication, GalleryItem } from './types';
+import { Event, Route, BlogPost, ClubRule, HandSignal, MembershipApplication, GalleryItem, User } from './types';
 
 import regeneratedImg1 from './assets/images/regenerated_image_1784318617821.jpg';
 import regeneratedImg2 from './assets/images/regenerated_image_1784318618652.jpg';
@@ -258,3 +258,111 @@ export const DEFAULT_GALLERY_ITEMS: GalleryItem[] = [
     uploadedBy: 'Asena Yılmaz'
   }
 ];
+
+export const DEFAULT_USERS: User[] = [
+  {
+    id: 'admin-1',
+    name: 'Kurtuluş',
+    surname: 'Düzlü',
+    username: 'kurt',
+    password: 'kurt123',
+    role: 'admin',
+    status: 'approved',
+    statusText: 'Kurucu Üye / Töre Muhafızı',
+    avatarUrl: 'https://github.com/kduzlu.png',
+    email: 'kduzlu@gmail.com',
+    profile: {
+      motoBrand: 'Yamaha',
+      motoModel: 'Tracer 9 GT',
+      bloodType: 'A Rh(+)'
+    },
+    privacy: {}
+  },
+  {
+    id: 'admin-2',
+    name: 'Melek',
+    surname: 'Doğanay',
+    username: 'melek',
+    password: 'melek123',
+    role: 'admin',
+    status: 'approved',
+    statusText: 'Kurucu / Töre Muhafızı',
+    avatarUrl: '/images/aymc_rider_back_1783386132808.jpg',
+    email: 'melek@aymc.org',
+    profile: {
+      motoBrand: 'Yamaha',
+      motoModel: 'YZF-R6',
+      bloodType: '0 Rh(+)'
+    },
+    privacy: {}
+  },
+  {
+    id: 'member-1',
+    name: 'Alperen',
+    surname: 'Kaya',
+    username: 'alperen',
+    password: '123',
+    role: 'member',
+    status: 'approved',
+    statusText: 'Yol Kaptanı',
+    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
+    profile: {
+      motoBrand: 'Honda',
+      motoModel: 'Africa Twin',
+      bloodType: 'B Rh(+)'
+    },
+    privacy: {}
+  },
+  {
+    id: 'member-2',
+    name: 'Asena',
+    surname: 'Yılmaz',
+    username: 'asena',
+    password: '123',
+    role: 'member',
+    status: 'approved',
+    statusText: 'Teşkilat Sorumlusu',
+    avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=200',
+    profile: {
+      motoBrand: 'BMW',
+      motoModel: 'R1250 GS',
+      bloodType: 'AB Rh(+)'
+    },
+    privacy: {}
+  },
+  {
+    id: 'member-3',
+    name: 'Bora',
+    surname: 'Yalçın',
+    username: 'bora',
+    password: '123',
+    role: 'member',
+    status: 'approved',
+    statusText: 'Kıdemli Üye',
+    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200',
+    profile: {
+      motoBrand: 'BMW',
+      motoModel: 'R1250 GS Adventure',
+      bloodType: '0 Rh(-)'
+    },
+    privacy: {}
+  },
+  {
+    id: 'member-4',
+    name: 'Caner',
+    surname: 'Öztürk',
+    username: 'caner',
+    password: '123',
+    role: 'member',
+    status: 'pending',
+    statusText: 'Aday Üye',
+    avatarUrl: '',
+    profile: {
+      motoBrand: 'Honda',
+      motoModel: 'CRF1100',
+      bloodType: 'A Rh(+)'
+    },
+    privacy: {}
+  }
+];
+

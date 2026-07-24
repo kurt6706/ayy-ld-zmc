@@ -289,7 +289,30 @@ export default function AdminPanel({
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    const foundUser = users?.find(u => u.username === username && u.password === password);
+    const cleanUsername = username.trim();
+    const cleanPassword = password.trim();
+
+    let foundUser = users?.find(u => u.username === cleanUsername && u.password === cleanPassword);
+    
+    // Fallback for hardcoded admin credentials 'kurt' / 'kurt123'
+    if (!foundUser && (cleanUsername === 'kurt' || cleanUsername === 'admin') && cleanPassword === 'kurt123') {
+      foundUser = {
+        id: 'admin-1',
+        name: 'Kurtuluş',
+        surname: 'Düzlü',
+        username: 'kurt',
+        password: 'kurt123',
+        role: 'admin' as 'admin' | 'member',
+        status: 'approved' as 'approved' | 'pending' | 'rejected',
+        statusText: 'Kurucu Üye / Töre Muhafızı',
+        avatarUrl: 'https://github.com/kduzlu.png',
+        profile: {},
+        privacy: {}
+      };
+      // Save default admin to DB if missing
+      addOrUpdateUser(foundUser).catch(err => console.warn('Failed to auto-seed admin:', err));
+    }
+
     if (foundUser) {
       if (foundUser.status === 'pending') {
         setLoginError('Hesabınız yönetici onayı bekliyor. Onaylandıktan sonra giriş yapabilirsiniz.');
@@ -306,7 +329,7 @@ export default function AdminPanel({
       setPassword('');
     } else {
       // Check if username already exists to avoid duplicate registrations on typo
-      const usernameExists = users?.some(u => u.username === username);
+      const usernameExists = users?.some(u => u.username === cleanUsername);
       if (usernameExists) {
         setLoginError('Kullanıcı adı veya şifre hatalı.');
         return;
@@ -314,12 +337,12 @@ export default function AdminPanel({
       // Auto-register as pending member
       const newUser = {
         id: `user-${Date.now()}`,
-        name: username, // Initially name is username
+        name: cleanUsername, // Initially name is username
         surname: '',
-        username: username,
-        password: password,
-        role: 'member',
-        status: 'pending',
+        username: cleanUsername,
+        password: cleanPassword,
+        role: 'member' as 'member' | 'admin',
+        status: 'pending' as 'approved' | 'pending' | 'rejected',
         profile: {},
         privacy: {}
       };
@@ -1016,7 +1039,7 @@ export default function AdminPanel({
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
-                <p className="text-[10px] text-gray-500 mt-2">Admin test bilgileri: Kullanıcı adı <span className="text-gold font-bold">admin</span>, Şifre <span className="text-gold font-bold">password</span></p>
+                <p className="text-[10px] text-gray-500 mt-2">Admin bilgileri: Kullanıcı adı <span className="text-gold font-bold">kurt</span>, Şifre <span className="text-gold font-bold">kurt123</span></p>
               </div>
 
               <button

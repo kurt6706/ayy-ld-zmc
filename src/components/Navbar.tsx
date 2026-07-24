@@ -23,6 +23,7 @@ import {
   Phone,
   ChevronRight,
   User,
+  UserPlus,
   Video
 } from 'lucide-react';
 import { IMAGES } from '../data';
@@ -218,17 +219,34 @@ export default function Navbar({ activePage, setActivePage, darkMode, setDarkMod
                     )}
                   </button>
                 ) : (
-                  <button
-                    onClick={() => handleNavClick('admin')}
-                    className={`flex items-center space-x-1.5 px-3.5 py-2 border transition-all rounded-full text-[10px] font-sans font-extrabold tracking-widest uppercase cursor-pointer ${
-                      activePage === 'admin'
-                        ? 'bg-brand border-brand text-white shadow-lg shadow-brand/20'
-                        : 'bg-neutral-950 border-neutral-800 text-neutral-300 hover:text-white hover:border-neutral-700'
-                    }`}
-                  >
-                    <Lock className="w-3 h-3 text-brand" />
-                    <span>ÜYE GİRİŞİ</span>
-                  </button>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => {
+                        window.location.hash = 'register';
+                        handleNavClick('admin');
+                      }}
+                      className="flex items-center space-x-1.5 px-3.5 py-2 bg-brand hover:bg-brand-dark border border-brand text-white transition-all rounded-full text-[10px] font-sans font-extrabold tracking-widest uppercase cursor-pointer shadow-lg shadow-brand/20 hover:scale-105"
+                      title="Kulübe Üye Ol"
+                    >
+                      <UserPlus className="w-3.5 h-3.5 text-white" />
+                      <span>SİTEYE ÜYE OL</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        window.location.hash = 'login';
+                        handleNavClick('admin');
+                      }}
+                      className={`flex items-center space-x-1.5 px-3 py-2 border transition-all rounded-full text-[10px] font-sans font-extrabold tracking-widest uppercase cursor-pointer ${
+                        activePage === 'admin'
+                          ? 'bg-neutral-900 border-neutral-700 text-white shadow-lg'
+                          : 'bg-neutral-950 border-neutral-800 text-neutral-300 hover:text-white hover:border-neutral-700'
+                      }`}
+                    >
+                      <Lock className="w-3 h-3 text-brand" />
+                      <span>ÜYE GİRİŞİ</span>
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
@@ -470,17 +488,29 @@ export default function Navbar({ activePage, setActivePage, darkMode, setDarkMod
                 </button>
               </div>
             ) : (
-              <button
-                onClick={() => handleNavClick('admin')}
-                className={`w-full flex items-center justify-center space-x-2 py-3 rounded-lg text-[10px] font-sans font-extrabold tracking-widest uppercase border transition-all cursor-pointer ${
-                  activePage === 'admin'
-                    ? 'bg-brand border-brand text-white shadow-lg'
-                    : 'bg-neutral-900 border-neutral-850 text-neutral-300 hover:text-white hover:bg-neutral-800'
-                }`}
-              >
-                <Lock className="w-3.5 h-3.5 text-brand" />
-                <span>ÜYE GİRİŞ PANELİ</span>
-              </button>
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={() => {
+                    window.location.hash = 'register';
+                    handleNavClick('admin');
+                  }}
+                  className="w-full flex items-center justify-center space-x-2 py-3 rounded-lg text-[10px] font-sans font-extrabold tracking-widest uppercase bg-brand border border-brand text-white shadow-lg cursor-pointer hover:bg-brand-dark transition-all"
+                >
+                  <UserPlus className="w-3.5 h-3.5 text-white" />
+                  <span>SİTEYE ÜYE OL</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    window.location.hash = 'login';
+                    handleNavClick('admin');
+                  }}
+                  className="w-full flex items-center justify-center space-x-2 py-2.5 rounded-lg text-[10px] font-sans font-extrabold tracking-widest uppercase bg-neutral-900 border border-neutral-800 text-neutral-300 hover:text-white hover:bg-neutral-800 transition-all cursor-pointer"
+                >
+                  <Lock className="w-3.5 h-3.5 text-brand" />
+                  <span>ÜYE GİRİŞ PANELİ</span>
+                </button>
+              </div>
             )}
           </div>
         </div>

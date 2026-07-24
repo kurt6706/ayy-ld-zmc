@@ -26,7 +26,6 @@ import Chat from './components/Chat';
 import VoiceRoom from './components/VoiceRoom';
 import MessagesPanel from './components/MessagesPanel';
 import Profile from './components/Profile';
-import AISupportWidget from './components/AISupportWidget';
 import MeetingRoom from './components/MeetingRoom';
 import { IMAGES } from './data';
 
@@ -508,9 +507,6 @@ export default function App() {
           </div>
         </div>
       )}
-
-      {/* 7/24 AI Club Support Chat Box */}
-      <AISupportWidget />
     </div>
   );
 }

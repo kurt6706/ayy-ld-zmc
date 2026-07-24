@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Lock, Unlock, Eye, EyeOff, LayoutDashboard, Users, Calendar, Plus, RefreshCw, LogOut, Check, X, FileText, Map, Image, Edit3, Trash2, ArrowLeft, MessageSquare, Image as ImageIcon, UploadCloud, Play, Info } from 'lucide-react';
+import { Lock, Unlock, Eye, EyeOff, LayoutDashboard, Users, Calendar, Plus, RefreshCw, LogOut, Check, X, FileText, Map, Image, Edit3, Trash2, ArrowLeft, MessageSquare, Image as ImageIcon, UploadCloud, Play, Info, UserPlus, CheckCircle } from 'lucide-react';
 import { Event, Route, BlogPost, UserPost, GalleryItem } from '../types';
 import { IMAGES } from '../data';
 import { addOrUpdateUserPost, deleteUserPostDoc, addOrUpdateUser, deleteUserDoc, addOrUpdateGalleryItem } from '../lib/firebaseService';
@@ -126,11 +126,97 @@ export default function AdminPanel({
   setCurrentUser = () => {},
   userPosts = [],
 }: AdminPanelProps) {
-  // Authentication State
+  // Authentication & Member Sign-Up State
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
+
+  // Auth Mode: 'login' | 'register'
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  
+  // Registration Form States
+  const [regName, setRegName] = useState('');
+  const [regSurname, setRegSurname] = useState('');
+  const [regUsername, setRegUsername] = useState('');
+  const [regEmail, setRegEmail] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [regMotorcycle, setRegMotorcycle] = useState('');
+  const [regBloodType, setRegBloodType] = useState('0 Rh+');
+  const [regPhone, setRegPhone] = useState('');
+  const [regSuccessMsg, setRegSuccessMsg] = useState('');
+
+  useEffect(() => {
+    const checkHash = () => {
+      if (window.location.hash === '#register' || window.location.hash === '#uye-ol') {
+        setAuthMode('register');
+      } else if (window.location.hash === '#login' || window.location.hash === '#giris') {
+        setAuthMode('login');
+      }
+    };
+    checkHash();
+    window.addEventListener('hashchange', checkHash);
+    return () => window.removeEventListener('hashchange', checkHash);
+  }, []);
+
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError('');
+    setRegSuccessMsg('');
+
+    if (!regUsername.trim() || !regPassword.trim()) {
+      setLoginError('Kullanıcı adı ve şifre zorunludur.');
+      return;
+    }
+
+    if (regPassword.length < 4) {
+      setLoginError('Şifre en az 4 karakter olmalıdır.');
+      return;
+    }
+
+    const usernameExists = users?.some(u => u.username?.toLowerCase() === regUsername.trim().toLowerCase());
+    if (usernameExists) {
+      setLoginError('Bu kullanıcı adı zaten kullanılmaktadır. Lütfen farklı bir kullanıcı adı seçin.');
+      return;
+    }
+
+    const newUser = {
+      id: `user-${Date.now()}`,
+      name: regName.trim() || regUsername.trim(),
+      surname: regSurname.trim() || '',
+      username: regUsername.trim(),
+      email: regEmail.trim() || '',
+      password: regPassword.trim(),
+      role: 'member',
+      status: 'pending',
+      motorcycle: regMotorcycle.trim(),
+      bloodType: regBloodType,
+      phone: regPhone.trim(),
+      profile: {
+        motoBrand: regMotorcycle.trim(),
+        bloodType: regBloodType,
+        phoneNumbers: regPhone.trim(),
+      },
+      privacy: {}
+    };
+
+    try {
+      await addOrUpdateUser(newUser);
+      if (setUsers && users) {
+        setUsers([...users, newUser]);
+      }
+      setRegSuccessMsg('Üyelik başvurunuz başarıyla oluşturuldu! Yönetici onayından sonra kullanıcı adınız ve şifrenizle giriş yapabilirsiniz.');
+      setRegName('');
+      setRegSurname('');
+      setRegUsername('');
+      setRegEmail('');
+      setRegPassword('');
+      setRegMotorcycle('');
+      setRegPhone('');
+    } catch (err: any) {
+      setLoginError('Kayıt oluşturulurken bir hata oluştu: ' + (err.message || err));
+    }
+  };
 
   // Active Admin Tab
   const [activeTab, setActiveTab] = useState<'add-event' | 'add-blog' | 'add-route' | 'create-user' | 'list-users' | 'pending-users' | 'edit-user' | 'upload-media'>('list-users');
@@ -766,20 +852,48 @@ export default function AdminPanel({
     );
   };
 
-  // Login View
+  // Login & Sign Up View
   if (!currentUser) {
     return (
       <div id="admin-login-screen" className="bg-transparent text-white min-h-screen flex items-center justify-center px-4 py-20">
-        <div className="max-w-md w-full bg-[#1A1A1A] border border-neutral-900 rounded-sm p-8 shadow-2xl relative">
+        <div className="max-w-lg w-full bg-[#1A1A1A] border border-neutral-900 rounded-sm p-6 sm:p-8 shadow-2xl relative">
           {/* Top emblem */}
           <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-20 h-20 bg-brand rounded-full border-4 border-black flex items-center justify-center text-white shadow-lg shadow-brand/20">
-            <Lock className="w-8 h-8 fill-white/10" />
+            {authMode === 'login' ? <Lock className="w-8 h-8 fill-white/10" /> : <UserPlus className="w-8 h-8 fill-white/10" />}
           </div>
 
           <div className="text-center mt-8 mb-6">
-            <h3 className="font-bebas text-3xl tracking-widest text-white uppercase">SİSTEM GİRİŞİ</h3>
-            <p className="font-sans text-[11px] text-gray-500 uppercase tracking-widest font-semibold mt-1">Üye veya Yönetici Girişi</p>
+            <h3 className="font-bebas text-3xl tracking-widest text-white uppercase">
+              {authMode === 'login' ? 'SİSTEM GİRİŞİ' : 'SİTEYE ÜYE OL'}
+            </h3>
+            <p className="font-sans text-[11px] text-gray-500 uppercase tracking-widest font-semibold mt-1">
+              {authMode === 'login' ? 'Üye veya Yönetici Girişi' : 'Ayyıldız Motor Kulübü Üyelik Başvurusu'}
+            </p>
             <div className="w-12 h-0.5 bg-brand mx-auto mt-2.5" />
+          </div>
+
+          {/* Mode Switcher Tabs */}
+          <div className="grid grid-cols-2 bg-black p-1 border border-neutral-850 rounded-sm mb-6">
+            <button
+              type="button"
+              onClick={() => { setAuthMode('login'); setLoginError(''); setRegSuccessMsg(''); }}
+              className={`py-2.5 text-[11px] font-sans font-extrabold uppercase tracking-widest rounded-sm transition-all flex items-center justify-center space-x-2 cursor-pointer ${
+                authMode === 'login' ? 'bg-neutral-800 text-white shadow-md' : 'text-neutral-400 hover:text-white'
+              }`}
+            >
+              <Lock className="w-3.5 h-3.5 text-brand" />
+              <span>GİRİŞ YAP</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => { setAuthMode('register'); setLoginError(''); setRegSuccessMsg(''); }}
+              className={`py-2.5 text-[11px] font-sans font-extrabold uppercase tracking-widest rounded-sm transition-all flex items-center justify-center space-x-2 cursor-pointer ${
+                authMode === 'register' ? 'bg-brand text-white shadow-md shadow-brand/20' : 'text-neutral-400 hover:text-white'
+              }`}
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>SİTEYE ÜYE OL</span>
+            </button>
           </div>
 
           {loginError && (
@@ -788,65 +902,211 @@ export default function AdminPanel({
             </div>
           )}
 
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-[10px] font-sans font-bold tracking-wider text-gray-400 uppercase mb-2">Kullanıcı Adı</label>
-              <input
-                type="text"
-                required
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="Kullanıcı adınız..."
-                className="w-full bg-black border border-neutral-800 rounded-sm py-3 px-4 text-sm font-sans text-white focus:outline-none focus:border-brand"
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] font-sans font-bold tracking-wider text-gray-400 uppercase mb-2">Şifre</label>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Şifreniz..."
-                  className="w-full bg-black border border-neutral-800 rounded-sm py-3 px-4 text-sm font-mono text-white focus:outline-none focus:border-brand"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
+          {regSuccessMsg && (
+            <div className="bg-emerald-950/40 border border-emerald-500 text-emerald-200 p-4 rounded-sm text-xs font-sans mb-4 space-y-3">
+              <div className="flex items-center space-x-2 font-bold text-sm text-emerald-400">
+                <CheckCircle className="w-5 h-5 shrink-0" />
+                <span>Başvurunuz Başarıyla Alındı!</span>
               </div>
-              <p className="text-[10px] text-gray-500 mt-2">Admin test bilgileri: Kullanıcı adı <span className="text-gold font-bold">admin</span>, Şifre <span className="text-gold font-bold">password</span></p>
+              <p className="leading-relaxed">{regSuccessMsg}</p>
+              <button
+                type="button"
+                onClick={() => { setAuthMode('login'); setRegSuccessMsg(''); }}
+                className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold uppercase text-[10px] tracking-wider rounded-sm transition-colors cursor-pointer"
+              >
+                GİRİŞ EKRANINA GİT
+              </button>
             </div>
+          )}
 
-            <button
-              type="submit"
-              className="w-full flex items-center justify-center space-x-2 py-3.5 bg-brand border border-brand text-white text-xs font-sans font-bold tracking-widest uppercase hover:bg-brand-dark transition-colors rounded-sm"
-            >
-              <Unlock className="w-4 h-4" />
-              <span>GİRİŞ YAP</span>
-            </button>
+          {authMode === 'login' ? (
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-sans font-bold tracking-wider text-gray-400 uppercase mb-2">Kullanıcı Adı</label>
+                <input
+                  type="text"
+                  required
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="Kullanıcı adınız..."
+                  className="w-full bg-black border border-neutral-800 rounded-sm py-3 px-4 text-sm font-sans text-white focus:outline-none focus:border-brand"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-sans font-bold tracking-wider text-gray-400 uppercase mb-2">Şifre</label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Şifreniz..."
+                    className="w-full bg-black border border-neutral-800 rounded-sm py-3 px-4 text-sm font-mono text-white focus:outline-none focus:border-brand"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors cursor-pointer"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <p className="text-[10px] text-gray-500 mt-2">Admin test bilgileri: Kullanıcı adı <span className="text-gold font-bold">admin</span>, Şifre <span className="text-gold font-bold">password</span></p>
+              </div>
 
-            <div className="relative flex py-2 items-center">
-              <div className="flex-grow border-t border-neutral-800"></div>
-              <span className="flex-shrink mx-4 text-neutral-600 text-[10px] uppercase font-bold tracking-wider">veya</span>
-              <div className="flex-grow border-t border-neutral-800"></div>
-            </div>
+              <button
+                type="submit"
+                className="w-full flex items-center justify-center space-x-2 py-3.5 bg-brand border border-brand text-white text-xs font-sans font-bold tracking-widest uppercase hover:bg-brand-dark transition-colors rounded-sm cursor-pointer shadow-lg shadow-brand/20"
+              >
+                <Unlock className="w-4 h-4" />
+                <span>GİRİŞ YAP</span>
+              </button>
 
-            <button
-              type="button"
-              onClick={handleGoogleLogin}
-              className="w-full flex items-center justify-center gap-3 py-3.5 bg-[#0e0e0e] hover:bg-neutral-900 border border-neutral-800 text-neutral-300 text-xs font-sans font-bold tracking-widest uppercase hover:text-white transition-all rounded-sm"
-            >
-              <svg className="w-4 h-4 fill-current text-white" viewBox="0 0 24 24">
-                <path d="M12.24 10.285V13.4h6.887C18.2 15.614 15.645 18 12.24 18c-3.86 0-7-3.14-7-7s3.14-7 7-7c1.706 0 3.256.61 4.47 1.637l2.43-2.43C17.385 1.54 14.945 0 12.24 0 6.033 0 1 5.033 1 11.24s5.033 11.24 11.24 11.24c5.895 0 10.864-4.223 10.864-11.24 0-.668-.063-1.314-.177-1.955H12.24z"/>
-              </svg>
-              <span>GOOGLE İLE GİRİŞ YAP</span>
-            </button>
-          </form>
+              <div className="relative flex py-2 items-center">
+                <div className="flex-grow border-t border-neutral-800"></div>
+                <span className="flex-shrink mx-4 text-neutral-600 text-[10px] uppercase font-bold tracking-wider">veya</span>
+                <div className="flex-grow border-t border-neutral-800"></div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleGoogleLogin}
+                className="w-full flex items-center justify-center gap-3 py-3.5 bg-[#0e0e0e] hover:bg-neutral-900 border border-neutral-800 text-neutral-300 text-xs font-sans font-bold tracking-widest uppercase hover:text-white transition-all rounded-sm cursor-pointer"
+              >
+                <svg className="w-4 h-4 fill-current text-white" viewBox="0 0 24 24">
+                  <path d="M12.24 10.285V13.4h6.887C18.2 15.614 15.645 18 12.24 18c-3.86 0-7-3.14-7-7s3.14-7 7-7c1.706 0 3.256.61 4.47 1.637l2.43-2.43C17.385 1.54 14.945 0 12.24 0 6.033 0 1 5.033 1 11.24s5.033 11.24 11.24 11.24c5.895 0 10.864-4.223 10.864-11.24 0-.668-.063-1.314-.177-1.955H12.24z"/>
+                </svg>
+                <span>GOOGLE İLE GİRİŞ YAP</span>
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleRegisterSubmit} className="space-y-3.5">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-sans font-bold tracking-wider text-gray-400 uppercase mb-1">Adınız</label>
+                  <input
+                    type="text"
+                    required
+                    value={regName}
+                    onChange={(e) => setRegName(e.target.value)}
+                    placeholder="Adınız..."
+                    className="w-full bg-black border border-neutral-800 rounded-sm py-2.5 px-3 text-xs font-sans text-white focus:outline-none focus:border-brand"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-sans font-bold tracking-wider text-gray-400 uppercase mb-1">Soyadınız</label>
+                  <input
+                    type="text"
+                    value={regSurname}
+                    onChange={(e) => setRegSurname(e.target.value)}
+                    placeholder="Soyadınız..."
+                    className="w-full bg-black border border-neutral-800 rounded-sm py-2.5 px-3 text-xs font-sans text-white focus:outline-none focus:border-brand"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-sans font-bold tracking-wider text-gray-400 uppercase mb-1">Kullanıcı Adı (*)</label>
+                <input
+                  type="text"
+                  required
+                  value={regUsername}
+                  onChange={(e) => setRegUsername(e.target.value)}
+                  placeholder="Giriş yapmak için kullanıcı adı..."
+                  className="w-full bg-black border border-neutral-800 rounded-sm py-2.5 px-3 text-xs font-sans text-white focus:outline-none focus:border-brand"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-sans font-bold tracking-wider text-gray-400 uppercase mb-1">Şifre (*)</label>
+                <input
+                  type="password"
+                  required
+                  value={regPassword}
+                  onChange={(e) => setRegPassword(e.target.value)}
+                  placeholder="En az 4 karakter..."
+                  className="w-full bg-black border border-neutral-800 rounded-sm py-2.5 px-3 text-xs font-mono text-white focus:outline-none focus:border-brand"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-sans font-bold tracking-wider text-gray-400 uppercase mb-1">E-Posta Adresi</label>
+                <input
+                  type="email"
+                  value={regEmail}
+                  onChange={(e) => setRegEmail(e.target.value)}
+                  placeholder="ornek@email.com"
+                  className="w-full bg-black border border-neutral-800 rounded-sm py-2.5 px-3 text-xs font-sans text-white focus:outline-none focus:border-brand"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-sans font-bold tracking-wider text-gray-400 uppercase mb-1">Motosiklet Modeli</label>
+                  <input
+                    type="text"
+                    value={regMotorcycle}
+                    onChange={(e) => setRegMotorcycle(e.target.value)}
+                    placeholder="Örn: Yamaha MT-07"
+                    className="w-full bg-black border border-neutral-800 rounded-sm py-2.5 px-3 text-xs font-sans text-white focus:outline-none focus:border-brand"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-sans font-bold tracking-wider text-gray-400 uppercase mb-1">Kan Grubu</label>
+                  <select
+                    value={regBloodType}
+                    onChange={(e) => setRegBloodType(e.target.value)}
+                    className="w-full bg-black border border-neutral-800 rounded-sm py-2.5 px-3 text-xs font-sans text-white focus:outline-none focus:border-brand"
+                  >
+                    <option value="0 Rh+">0 Rh+</option>
+                    <option value="0 Rh-">0 Rh-</option>
+                    <option value="A Rh+">A Rh+</option>
+                    <option value="A Rh-">A Rh-</option>
+                    <option value="B Rh+">B Rh+</option>
+                    <option value="B Rh-">B Rh-</option>
+                    <option value="AB Rh+">AB Rh+</option>
+                    <option value="AB Rh-">AB Rh-</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-sans font-bold tracking-wider text-gray-400 uppercase mb-1">Telefon Numarası</label>
+                <input
+                  type="tel"
+                  value={regPhone}
+                  onChange={(e) => setRegPhone(e.target.value)}
+                  placeholder="05XX XXX XX XX"
+                  className="w-full bg-black border border-neutral-800 rounded-sm py-2.5 px-3 text-xs font-sans text-white focus:outline-none focus:border-brand"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full flex items-center justify-center space-x-2 py-3.5 bg-brand border border-brand text-white text-xs font-sans font-bold tracking-widest uppercase hover:bg-brand-dark transition-colors rounded-sm cursor-pointer shadow-lg shadow-brand/20 mt-2"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span>KULÜBE ÜYE OL (BAŞVUR)</span>
+              </button>
+
+              <div className="relative flex py-1.5 items-center">
+                <div className="flex-grow border-t border-neutral-800"></div>
+                <span className="flex-shrink mx-4 text-neutral-600 text-[10px] uppercase font-bold tracking-wider">veya</span>
+                <div className="flex-grow border-t border-neutral-800"></div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleGoogleLogin}
+                className="w-full flex items-center justify-center gap-3 py-3 bg-[#0e0e0e] hover:bg-neutral-900 border border-neutral-800 text-neutral-300 text-xs font-sans font-bold tracking-widest uppercase hover:text-white transition-all rounded-sm cursor-pointer"
+              >
+                <svg className="w-4 h-4 fill-current text-white" viewBox="0 0 24 24">
+                  <path d="M12.24 10.285V13.4h6.887C18.2 15.614 15.645 18 12.24 18c-3.86 0-7-3.14-7-7s3.14-7 7-7c1.706 0 3.256.61 4.47 1.637l2.43-2.43C17.385 1.54 14.945 0 12.24 0 6.033 0 1 5.033 1 11.24s5.033 11.24 11.24 11.24c5.895 0 10.864-4.223 10.864-11.24 0-.668-.063-1.314-.177-1.955H12.24z"/>
+                </svg>
+                <span>GOOGLE İLE HIZLI KAYIT OL</span>
+              </button>
+            </form>
+          )}
         </div>
       </div>
     );

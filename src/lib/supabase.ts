@@ -3,23 +3,38 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 export { createClient, type SupabaseClient };
 
 const metaEnv = typeof import.meta !== 'undefined' ? (import.meta as any).env : {};
-const supabaseUrl = metaEnv?.VITE_SUPABASE_URL || (typeof process !== 'undefined' ? process.env?.SUPABASE_URL : '') || '';
-const supabaseAnonKey = metaEnv?.VITE_SUPABASE_ANON_KEY || (typeof process !== 'undefined' ? process.env?.SUPABASE_ANON_KEY : '') || '';
+const procEnv = typeof process !== 'undefined' ? process.env : {};
+
+const supabaseUrl = 
+  metaEnv?.VITE_SUPABASE_URL || 
+  procEnv?.VITE_SUPABASE_URL || 
+  procEnv?.SUPABASE_URL || 
+  '';
+
+const supabaseKey = 
+  metaEnv?.VITE_SUPABASE_API_KEY || 
+  metaEnv?.VITE_SUPABASE_ANON_KEY || 
+  procEnv?.VITE_SUPABASE_API_KEY || 
+  procEnv?.VITE_SUPABASE_ANON_KEY || 
+  procEnv?.SUPABASE_API_KEY || 
+  procEnv?.SUPABASE_ANON_KEY || 
+  '';
 
 let supabaseClient: SupabaseClient | null = null;
 
 export function getSupabase(): SupabaseClient | null {
-  if (!supabaseUrl || !supabaseAnonKey) {
+  if (!supabaseUrl || !supabaseKey) {
     return null;
   }
   if (!supabaseClient) {
-    supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
+    supabaseClient = createClient(supabaseUrl, supabaseKey);
   }
   return supabaseClient;
 }
 
-export const supabase = (supabaseUrl && supabaseAnonKey) 
-  ? createClient(supabaseUrl, supabaseAnonKey) 
+export const supabase = (supabaseUrl && supabaseKey) 
+  ? createClient(supabaseUrl, supabaseKey) 
   : null;
+
 
 

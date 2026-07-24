@@ -185,8 +185,8 @@ export default function AdminPanel({
       username: regUsername.trim(),
       email: regEmail.trim() || '',
       password: regPassword.trim(),
-      role: 'member',
-      status: 'pending',
+      role: 'member' as 'member' | 'admin',
+      status: 'pending' as 'approved' | 'pending' | 'rejected',
       motorcycle: regMotorcycle.trim(),
       bloodType: regBloodType,
       phone: regPhone.trim(),
@@ -388,8 +388,8 @@ export default function AdminPanel({
           surname: ghUser.name && ghUser.name.split(' ').length > 1 ? ghUser.name.split(' ').slice(1).join(' ') : '',
           username: cleanLogin,
           password: '',
-          role: isDefaultAdmin ? 'admin' : 'member',
-          status: 'approved',
+          role: (isDefaultAdmin ? 'admin' : 'member') as 'admin' | 'member',
+          status: 'approved' as 'approved' | 'pending' | 'rejected',
           githubUsername: cleanLogin,
           githubUrl: githubUrl,
           avatarUrl: avatarUrl,
@@ -665,8 +665,8 @@ export default function AdminPanel({
       surname: newUserSurname,
       username: newUsernameField,
       password: newUserPassword,
-      role: newUserRole,
-      status: 'approved'
+      role: newUserRole as 'admin' | 'member',
+      status: 'approved' as 'approved' | 'pending' | 'rejected'
     };
     const saveUser = async () => {
       try {

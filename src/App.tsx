@@ -215,7 +215,7 @@ export default function App() {
           username: chatUser.email || chatUser.uid,
           password: '',
           role: (isDefaultAdminEmail ? 'admin' : 'member') as 'admin' | 'member',
-          status: 'approved',
+          status: 'approved' as 'approved' | 'pending' | 'rejected',
           googleId: chatUser.uid,
           avatarUrl: chatUser.photoURL || '',
           email: chatUser.email || '',

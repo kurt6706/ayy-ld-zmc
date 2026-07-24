@@ -1,10 +1,23 @@
 /**
- * @license
- * SPDX-License-Identifier: Apache-2.0
+ * Hostinger MySQL PHP API Data Service Layer
+ * Fully replaces Firebase Firestore & Storage.
+ * Connects directly to https://aymk.org/api/
  */
 
-import { Event, Route, BlogPost, UserPost, GalleryItem, Meeting } from '../types';
+import { Event, Route, BlogPost, UserPost, GalleryItem, Meeting, User } from '../types';
 import { DEFAULT_EVENTS, DEFAULT_ROUTES, DEFAULT_BLOG, DEFAULT_GALLERY_ITEMS } from '../data';
+import {
+  apiGetUsers, apiSaveUser, apiDeleteUser,
+  apiGetEvents, apiSaveEvent, apiDeleteEvent,
+  apiGetRoutes, apiSaveRoute, apiDeleteRoute,
+  apiGetBlogPosts, apiSaveBlogPost, apiDeleteBlogPost,
+  apiGetUserPosts, apiSaveUserPost, apiDeleteUserPost,
+  apiGetGalleryItems, apiSaveGalleryItem, apiDeleteGalleryItem,
+  apiGetAnnouncements, apiSaveAnnouncement, apiDeleteAnnouncement,
+  apiGetDirectMessages, apiSendDirectMessage,
+  apiGetMeetings, apiSaveMeeting, apiDeleteMeeting,
+  uploadMediaToHostinger
+} from './phpApiService';
 
 const channel = typeof window !== 'undefined' && 'BroadcastChannel' in window 
   ? new BroadcastChannel('aymc_service_channel') 
@@ -70,7 +83,7 @@ export async function testFirestoreConnection() {
   return true;
 }
 
-const DEFAULT_USERS = [
+const DEFAULT_USERS: User[] = [
   {
     id: 'admin-1',
     name: 'Kurtuluş',
@@ -109,19 +122,6 @@ const DEFAULT_USERS = [
     avatarUrl: '',
     profile: {},
     privacy: {}
-  },
-  {
-    id: 'member-2',
-    name: 'Asena',
-    surname: 'Yılmaz',
-    username: 'asena',
-    password: '123',
-    role: 'member',
-    status: 'approved',
-    statusText: 'Halkla İlişkiler Sorumlusu',
-    avatarUrl: '',
-    profile: {},
-    privacy: {}
   }
 ];
 
@@ -141,19 +141,48 @@ export async function bootstrapDatabaseIfEmpty() {
   if (!localStorage.getItem('aymc_svc_galleryItems')) {
     setStoreItem('galleryItems', DEFAULT_GALLERY_ITEMS);
   }
+
+  // Sync with Hostinger MySQL backend asynchronously
+  apiGetUsers().then((remoteUsers) => {
+    if (remoteUsers && remoteUsers.length > 0) {
+      setStoreItem('users', remoteUsers);
+      notifyKey('users');
+    }
+  }).catch(() => {});
+
+  apiGetEvents().then((remoteEvents) => {
+    if (remoteEvents && remoteEvents.length > 0) {
+      setStoreItem('events', remoteEvents);
+      notifyKey('events');
+    }
+  }).catch(() => {});
+
+  apiGetBlogPosts().then((remotePosts) => {
+    if (remotePosts && remotePosts.length > 0) {
+      setStoreItem('blogPosts', remotePosts);
+      notifyKey('blogPosts');
+    }
+  }).catch(() => {});
+
+  apiGetGalleryItems().then((remoteGallery) => {
+    if (remoteGallery && remoteGallery.length > 0) {
+      setStoreItem('galleryItems', remoteGallery);
+      notifyKey('galleryItems');
+    }
+  }).catch(() => {});
 }
 
 // USERS
-export function subscribeUsers(onUpdate: (users: any[]) => void) {
+export function subscribeUsers(onUpdate: (users: User[]) => void) {
   const users = getStoreItem('users', DEFAULT_USERS);
   onUpdate(users);
-  return listenKey('users', (data: any[]) => onUpdate(data));
+  return listenKey('users', (data: User[]) => onUpdate(data));
 }
 
-export async function addOrUpdateUser(user: any): Promise<void> {
-  const users = getStoreItem<any[]>('users', DEFAULT_USERS);
+export async function addOrUpdateUser(user: User): Promise<void> {
+  const users = getStoreItem<User[]>('users', DEFAULT_USERS);
   const idx = users.findIndex((u) => u.id === user.id);
-  let updated: any[];
+  let updated: User[];
   if (idx !== -1) {
     updated = [...users];
     updated[idx] = { ...updated[idx], ...user };
@@ -162,13 +191,15 @@ export async function addOrUpdateUser(user: any): Promise<void> {
   }
   setStoreItem('users', updated);
   notifyKey('users');
+  apiSaveUser(user).catch(() => {});
 }
 
 export async function deleteUserDoc(userId: string): Promise<void> {
-  const users = getStoreItem<any[]>('users', DEFAULT_USERS);
+  const users = getStoreItem<User[]>('users', DEFAULT_USERS);
   const updated = users.filter((u) => u.id !== userId);
   setStoreItem('users', updated);
   notifyKey('users');
+  apiDeleteUser(userId).catch(() => {});
 }
 
 // EVENTS
@@ -190,6 +221,7 @@ export async function addOrUpdateEvent(event: Event): Promise<void> {
   }
   setStoreItem('events', updated);
   notifyKey('events');
+  apiSaveEvent(event).catch(() => {});
 }
 
 export async function deleteEventDoc(eventId: string): Promise<void> {
@@ -197,6 +229,7 @@ export async function deleteEventDoc(eventId: string): Promise<void> {
   const updated = events.filter((e) => e.id !== eventId);
   setStoreItem('events', updated);
   notifyKey('events');
+  apiDeleteEvent(eventId).catch(() => {});
 }
 
 // ROUTES
@@ -218,6 +251,7 @@ export async function addOrUpdateRoute(route: Route): Promise<void> {
   }
   setStoreItem('routes', updated);
   notifyKey('routes');
+  apiSaveRoute(route).catch(() => {});
 }
 
 export async function deleteRouteDoc(routeId: string): Promise<void> {
@@ -225,9 +259,10 @@ export async function deleteRouteDoc(routeId: string): Promise<void> {
   const updated = routes.filter((r) => r.id !== routeId);
   setStoreItem('routes', updated);
   notifyKey('routes');
+  apiDeleteRoute(routeId).catch(() => {});
 }
 
-// BLOG POSTS
+// BLOG POSTS / NEWS
 export function subscribeBlogPosts(onUpdate: (posts: BlogPost[]) => void) {
   const blogPosts = getStoreItem('blogPosts', DEFAULT_BLOG);
   onUpdate(blogPosts);
@@ -242,10 +277,11 @@ export async function addOrUpdateBlogPost(post: BlogPost): Promise<void> {
     updated = [...posts];
     updated[idx] = { ...updated[idx], ...post };
   } else {
-    updated = [...posts, post];
+    updated = [post, ...posts];
   }
   setStoreItem('blogPosts', updated);
   notifyKey('blogPosts');
+  apiSaveBlogPost(post).catch(() => {});
 }
 
 export async function deleteBlogPostDoc(postId: string): Promise<void> {
@@ -253,9 +289,10 @@ export async function deleteBlogPostDoc(postId: string): Promise<void> {
   const updated = posts.filter((p) => p.id !== postId);
   setStoreItem('blogPosts', updated);
   notifyKey('blogPosts');
+  apiDeleteBlogPost(postId).catch(() => {});
 }
 
-// USER POSTS
+// USER POSTS / FORUM
 export function subscribeUserPosts(onUpdate: (posts: UserPost[]) => void) {
   const userPosts = getStoreItem<UserPost[]>('userPosts', []);
   onUpdate(userPosts);
@@ -274,6 +311,7 @@ export async function addOrUpdateUserPost(post: UserPost): Promise<void> {
   }
   setStoreItem('userPosts', updated);
   notifyKey('userPosts');
+  apiSaveUserPost(post).catch(() => {});
 }
 
 export async function deleteUserPostDoc(postId: string): Promise<void> {
@@ -281,6 +319,7 @@ export async function deleteUserPostDoc(postId: string): Promise<void> {
   const updated = posts.filter((p) => p.id !== postId);
   setStoreItem('userPosts', updated);
   notifyKey('userPosts');
+  apiDeleteUserPost(postId).catch(() => {});
 }
 
 // GALLERY ITEMS
@@ -302,6 +341,7 @@ export async function addOrUpdateGalleryItem(item: GalleryItem): Promise<void> {
   }
   setStoreItem('galleryItems', updated);
   notifyKey('galleryItems');
+  apiSaveGalleryItem(item).catch(() => {});
 }
 
 export async function deleteGalleryItemDoc(itemId: string): Promise<void> {
@@ -309,6 +349,7 @@ export async function deleteGalleryItemDoc(itemId: string): Promise<void> {
   const updated = items.filter((i) => i.id !== itemId);
   setStoreItem('galleryItems', updated);
   notifyKey('galleryItems');
+  apiDeleteGalleryItem(itemId).catch(() => {});
 }
 
 // ANNOUNCEMENTS
@@ -330,6 +371,7 @@ export async function addOrUpdateAnnouncement(announcement: any): Promise<void> 
   }
   setStoreItem('announcements', updated);
   notifyKey('announcements');
+  apiSaveAnnouncement(announcement).catch(() => {});
 }
 
 export async function deleteAnnouncementDoc(announcementId: string): Promise<void> {
@@ -337,6 +379,7 @@ export async function deleteAnnouncementDoc(announcementId: string): Promise<voi
   const updated = announcements.filter((a) => a.id !== announcementId);
   setStoreItem('announcements', updated);
   notifyKey('announcements');
+  apiDeleteAnnouncement(announcementId).catch(() => {});
 }
 
 // DIRECT MESSAGES
@@ -351,6 +394,7 @@ export async function addDirectMessageDoc(message: any): Promise<void> {
   const updated = [...msgs, message];
   setStoreItem('directMessages', updated);
   notifyKey('directMessages');
+  apiSendDirectMessage(message).catch(() => {});
 }
 
 export async function markDirectMessageAsRead(msgId: string): Promise<void> {
@@ -392,6 +436,7 @@ export async function addOrUpdateMeeting(meeting: Meeting): Promise<void> {
   }
   setStoreItem('meetings', updated);
   notifyKey('meetings');
+  apiSaveMeeting(meeting).catch(() => {});
 }
 
 export async function deleteMeetingDoc(meetingId: string): Promise<void> {
@@ -399,4 +444,7 @@ export async function deleteMeetingDoc(meetingId: string): Promise<void> {
   const updated = meetings.filter((m) => m.id !== meetingId);
   setStoreItem('meetings', updated);
   notifyKey('meetings');
+  apiDeleteMeeting(meetingId).catch(() => {});
 }
+
+export { uploadMediaToHostinger };

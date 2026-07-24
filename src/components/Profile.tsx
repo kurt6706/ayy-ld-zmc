@@ -31,8 +31,6 @@ import {
   addOrUpdateUser, 
   subscribeDirectMessages 
 } from '../lib/firebaseService';
-import { auth, googleAuthProvider, translateFirebaseError } from '../firebase';
-import { signInWithPopup } from 'firebase/auth';
 import MessagesPanel from './MessagesPanel';
 
 interface ProfileProps {
@@ -202,67 +200,6 @@ export default function Profile({
     }
   };
 
-  const handleGoogleLogin = async () => {
-    try {
-      setLoginError('');
-      const result = await signInWithPopup(auth, googleAuthProvider);
-      const fUser = result.user;
-      
-      let foundUser = users.find(
-        (u) => u.googleId === fUser.uid || u.email === fUser.email || u.username === fUser.email
-      );
-      const isDefaultAdminEmail = 
-        fUser.email === 'kduzlu@gmail.com' || fUser.email === 'admin@ayyldzmotokulp.com';
-      
-      if (foundUser) {
-        if (!foundUser.googleId || !foundUser.avatarUrl || !foundUser.email || (isDefaultAdminEmail && foundUser.role !== 'admin')) {
-          const updated = {
-            ...foundUser,
-            googleId: fUser.uid,
-            email: fUser.email || foundUser.email || '',
-            avatarUrl: fUser.photoURL || foundUser.avatarUrl || '',
-            role: isDefaultAdminEmail ? 'admin' : foundUser.role,
-            statusText: isDefaultAdminEmail ? 'Kurucu Üye / Töre Muhafızı' : (foundUser.statusText || 'Google Üyesi')
-          };
-          await addOrUpdateUser(updated);
-          foundUser = updated;
-        }
-        if (foundUser.status === 'pending') {
-          setLoginError('Hesabınız yönetici onayı bekliyor.');
-          await auth.signOut();
-          return;
-        }
-        if (foundUser.status === 'rejected') {
-          setLoginError('Hesabınız reddedildi.');
-          await auth.signOut();
-          return;
-        }
-        setCurrentUser(foundUser);
-      } else {
-        const newUser = {
-          id: fUser.uid,
-          name: fUser.displayName ? fUser.displayName.split(' ')[0] : 'İsimsiz',
-          surname: fUser.displayName ? fUser.displayName.split(' ').slice(1).join(' ') : '',
-          username: fUser.email || fUser.uid,
-          password: '',
-          role: isDefaultAdminEmail ? 'admin' : 'member',
-          status: 'approved',
-          googleId: fUser.uid,
-          avatarUrl: fUser.photoURL || '',
-          email: fUser.email || '',
-          statusText: isDefaultAdminEmail ? 'Kurucu Üye / Töre Muhafızı' : 'Google Üyesi',
-          profile: {},
-          privacy: {}
-        };
-        await addOrUpdateUser(newUser);
-        setCurrentUser(newUser);
-      }
-    } catch (error: any) {
-      console.error("Google login error:", error);
-      setLoginError(translateFirebaseError(error));
-    }
-  };
-
   const handleUpdateOwnProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!ownName || !ownSurname || !ownUsername) {
@@ -294,33 +231,6 @@ export default function Profile({
       triggerSuccess('Profiliniz başarıyla güncellendi.');
     } catch (err: any) {
       setLoginError(`Profil güncellenemedi: ${err.message || err}`);
-    }
-  };
-
-  const handleConnectGoogle = async () => {
-    try {
-      const result = await signInWithPopup(auth, googleAuthProvider);
-      const fUser = result.user;
-      
-      const exists = users.some(
-        (u) => u.googleId === fUser.uid && u.id !== currentUser.id
-      );
-      if (exists) {
-        alert("Bu Google hesabı zaten başka bir üyeliğe bağlı.");
-        return;
-      }
-
-      const updatedUser = {
-        ...currentUser,
-        googleId: fUser.uid,
-        email: fUser.email || currentUser.email || '',
-        avatarUrl: currentUser.avatarUrl || fUser.photoURL || ''
-      };
-      setCurrentUser(updatedUser);
-      await addOrUpdateUser(updatedUser);
-      alert("Google hesabınız başarıyla bağlandı!");
-    } catch (err: any) {
-      alert("Bağlantı başarısız: " + translateFirebaseError(err));
     }
   };
 
@@ -390,23 +300,6 @@ export default function Profile({
             >
               <Unlock className="w-4 h-4" />
               <span>GİRİŞ YAP / BAŞVUR</span>
-            </button>
-
-            <div className="relative flex py-2 items-center">
-              <div className="flex-grow border-t border-neutral-800"></div>
-              <span className="flex-shrink mx-4 text-neutral-600 text-[10px] uppercase font-bold tracking-wider">veya</span>
-              <div className="flex-grow border-t border-neutral-800"></div>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleGoogleLogin}
-              className="w-full flex items-center justify-center gap-3 py-3.5 bg-[#0e0e0e] hover:bg-neutral-900 border border-neutral-800 text-neutral-300 text-xs font-sans font-bold tracking-widest uppercase hover:text-white transition-all rounded-sm"
-            >
-              <svg className="w-4 h-4 fill-current text-white" viewBox="0 0 24 24">
-                <path d="M12.24 10.285V13.4h6.887C18.2 15.614 15.645 18 12.24 18c-3.86 0-7-3.14-7-7s3.14-7 7-7c1.706 0 3.256.61 4.47 1.637l2.43-2.43C17.385 1.54 14.945 0 12.24 0 6.033 0 1 5.033 1 11.24s5.033 11.24 11.24 11.24c5.895 0 10.864-4.223 10.864-11.24 0-.668-.063-1.314-.177-1.955H12.24z"/>
-              </svg>
-              <span>GOOGLE İLE GİRİŞ YAP</span>
             </button>
           </form>
         </div>
@@ -527,18 +420,11 @@ export default function Profile({
                   {currentUser.role === 'admin' ? 'YÖNETİCİ' : 'KULÜP ÜYESİ'}
                 </span>
                 
-                {currentUser.googleId ? (
+                {currentUser.githubUsername && (
                   <div className="flex items-center gap-1.5 text-[9px] text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-sm uppercase tracking-wider">
                     <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full shrink-0 animate-pulse" />
-                    Google Bağlantılı
+                    GitHub Bağlantılı (@{currentUser.githubUsername})
                   </div>
-                ) : (
-                  <button
-                    onClick={handleConnectGoogle}
-                    className="flex items-center gap-1 bg-black border border-neutral-800 hover:border-neutral-700 text-neutral-400 hover:text-white px-2 py-1 rounded-sm text-[9px] font-bold uppercase tracking-wider transition-all"
-                  >
-                    Google Bağla
-                  </button>
                 )}
               </div>
 

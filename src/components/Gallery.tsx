@@ -3,8 +3,6 @@ import { X, Trash2, Image as ImageIcon, Play, Edit3, ChevronLeft, ChevronRight }
 import { motion, AnimatePresence } from 'motion/react';
 import { GalleryItem } from '../types';
 import { subscribeGalleryItems, addOrUpdateGalleryItem, deleteGalleryItemDoc } from '../lib/firebaseService';
-import { ref, deleteObject } from 'firebase/storage';
-import { storage } from '../firebase';
 
 interface GalleryProps {
   currentUser: any | null;
@@ -73,10 +71,6 @@ export default function Gallery({ currentUser }: GalleryProps) {
     if (window.confirm('Bu içeriği silmek istediğinize emin misiniz?')) {
       try {
         await deleteGalleryItemDoc(item.id);
-        if (item.storagePath) {
-          const storageRef = ref(storage, item.storagePath);
-          await deleteObject(storageRef).catch(console.error); // Ignore storage delete errors
-        }
       } catch (error) {
         console.error('Error deleting item:', error);
         alert('Silinirken hata oluştu.');

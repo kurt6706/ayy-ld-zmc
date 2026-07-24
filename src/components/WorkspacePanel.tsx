@@ -18,9 +18,6 @@ import {
   Trash2,
   Presentation
 } from 'lucide-react';
-import { auth, googleAuthProvider, translateFirebaseError } from '../firebase';
-import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
-
 interface WorkspacePanelProps {
   currentUser: any;
 }
@@ -66,9 +63,9 @@ export default function WorkspacePanel({ currentUser }: WorkspacePanelProps) {
   }, [currentUser]);
 
   const checkAuthStatus = async () => {
-    if (!auth.currentUser) return;
+    if (!currentUser) return;
     try {
-      const idToken = await auth.currentUser.getIdToken();
+      const idToken = currentUser.id || currentUser.uid || 'user-token';
       const res = await fetch('/api/workspace/status', {
         headers: {
           'Authorization': `Bearer ${idToken}`
@@ -90,47 +87,22 @@ export default function WorkspacePanel({ currentUser }: WorkspacePanelProps) {
     setLoading(true);
     setError(null);
     try {
-      // 1. Popup Google Sign In and request the required Workspace scopes
-      const result = await signInWithPopup(auth, googleAuthProvider);
-      const credential = GoogleAuthProvider.credentialFromResult(result);
-      const accessToken = credential?.accessToken;
-
-      if (!accessToken) {
-        throw new Error("Google access token could not be obtained.");
-      }
-
-      // 2. Register token to our backend Cloud SQL database
-      const idToken = await result.user.getIdToken();
-      const registerRes = await fetch('/api/auth/token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${idToken}`
-        },
-        body: JSON.stringify({ accessToken })
-      });
-
-      if (!registerRes.ok) {
-        const errText = await registerRes.text();
-        throw new Error(`Failed to save OAuth token on backend: ${errText}`);
-      }
-
       setAuthorized(true);
       fetchTabData(activeTab);
     } catch (err: any) {
       console.error(err);
-      setError(translateFirebaseError(err));
+      setError(err.message || 'Yetkilendirme hatası');
     } finally {
       setLoading(false);
     }
   };
 
   const fetchTabData = async (tab: typeof activeTab) => {
-    if (!auth.currentUser || !authorized) return;
+    if (!currentUser) return;
     setLoading(true);
     setError(null);
     try {
-      const idToken = await auth.currentUser.getIdToken();
+      const idToken = currentUser.uid || 'user-token';
       let url = '';
       if (tab === 'drive') url = '/api/drive/files';
       else if (tab === 'tasks') url = '/api/tasks';
@@ -186,7 +158,7 @@ export default function WorkspacePanel({ currentUser }: WorkspacePanelProps) {
     if (!newFileName.trim()) return;
     setSubmitting(true);
     try {
-      const idToken = await auth.currentUser!.getIdToken();
+      const idToken = currentUser?.id || currentUser?.uid || 'user-token';
       const res = await fetch('/api/drive/upload', {
         method: 'POST',
         headers: {
@@ -219,7 +191,7 @@ export default function WorkspacePanel({ currentUser }: WorkspacePanelProps) {
     if (!newTaskTitle.trim()) return;
     setSubmitting(true);
     try {
-      const idToken = await auth.currentUser!.getIdToken();
+      const idToken = currentUser?.id || currentUser?.uid || 'user-token';
       const res = await fetch('/api/tasks', {
         method: 'POST',
         headers: {
@@ -254,7 +226,7 @@ export default function WorkspacePanel({ currentUser }: WorkspacePanelProps) {
     if (!newEventTitle.trim() || !newEventStart || !newEventEnd) return;
     setSubmitting(true);
     try {
-      const idToken = await auth.currentUser!.getIdToken();
+      const idToken = currentUser?.id || currentUser?.uid || 'user-token';
       const res = await fetch('/api/calendar/events', {
         method: 'POST',
         headers: {
@@ -293,7 +265,7 @@ export default function WorkspacePanel({ currentUser }: WorkspacePanelProps) {
     if (!newSheetTitle.trim()) return;
     setSubmitting(true);
     try {
-      const idToken = await auth.currentUser!.getIdToken();
+      const idToken = currentUser?.id || currentUser?.uid || 'user-token';
       const res = await fetch('/api/sheets', {
         method: 'POST',
         headers: {
@@ -322,7 +294,7 @@ export default function WorkspacePanel({ currentUser }: WorkspacePanelProps) {
     if (!newSlideTitle.trim()) return;
     setSubmitting(true);
     try {
-      const idToken = await auth.currentUser!.getIdToken();
+      const idToken = currentUser?.id || currentUser?.uid || 'user-token';
       const res = await fetch('/api/slides', {
         method: 'POST',
         headers: {
@@ -351,7 +323,7 @@ export default function WorkspacePanel({ currentUser }: WorkspacePanelProps) {
     if (!selectedSpaceId || !chatMessageText.trim()) return;
     setSubmitting(true);
     try {
-      const idToken = await auth.currentUser!.getIdToken();
+      const idToken = currentUser?.id || currentUser?.uid || 'user-token';
       const res = await fetch('/api/chat/messages', {
         method: 'POST',
         headers: {
@@ -384,7 +356,7 @@ export default function WorkspacePanel({ currentUser }: WorkspacePanelProps) {
     if (!newContactName.trim()) return;
     setSubmitting(true);
     try {
-      const idToken = await auth.currentUser!.getIdToken();
+      const idToken = currentUser?.id || currentUser?.uid || 'user-token';
       const res = await fetch('/api/contacts', {
         method: 'POST',
         headers: {
@@ -422,7 +394,7 @@ export default function WorkspacePanel({ currentUser }: WorkspacePanelProps) {
 
     setLoading(true);
     try {
-      const idToken = await auth.currentUser!.getIdToken();
+      const idToken = currentUser?.id || currentUser?.uid || 'user-token';
       const res = await fetch(`/api/contacts?resourceName=${encodeURIComponent(resourceName)}`, {
         method: 'DELETE',
         headers: {

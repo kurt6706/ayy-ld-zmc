@@ -1,69 +1,71 @@
-import { 
-  signInAnonymously, 
-  signInWithPopup, 
-  signOut, 
-  onAuthStateChanged, 
-  User 
-} from 'firebase/auth';
-import { auth, googleAuthProvider, translateFirebaseError } from './firebase';
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
-// Automatically log in anonymously if there is no session
-export async function loginAnonymously(): Promise<User> {
+// Local Session Management (Firebase completely removed)
+
+const AUTH_KEY = 'aymc_active_session_user';
+
+let currentSessionUser: any = (() => {
   try {
-    const credential = await signInAnonymously(auth);
-    return credential.user;
-  } catch (error: any) {
-    console.warn("Anonymous authentication failed, using guest session:", error);
-    const mockUser = {
-      uid: 'guest-default-uid',
-      displayName: 'Konuk Sürücü',
-      isAnonymous: true,
-      email: '',
-      photoURL: '',
-      phoneNumber: null,
-      providerId: 'firebase',
-      uid_mocked: true,
-      emailVerified: false,
-      metadata: {},
-      providerData: [],
-      refreshToken: '',
-      tenantId: null,
-      delete: async () => {},
-      getIdToken: async () => '',
-      getIdTokenResult: async () => ({}) as any,
-      reload: async () => {},
-      toJSON: () => ({}),
-    } as unknown as User;
-    return mockUser;
+    const saved = localStorage.getItem(AUTH_KEY);
+    return saved ? JSON.parse(saved) : null;
+  } catch {
+    return null;
   }
+})();
+
+const listeners: Array<(user: any) => void> = [];
+
+function notifyListeners() {
+  listeners.forEach((cb) => cb(currentSessionUser));
 }
 
-// Log in via Google Popup
-export async function loginWithGoogle(): Promise<User> {
-  try {
-    const credential = await signInWithPopup(auth, googleAuthProvider);
-    return credential.user;
-  } catch (error: any) {
-    console.error("Google authentication failed:", error);
-    throw new Error(translateFirebaseError(error));
+// Automatically log in anonymously
+export async function loginAnonymously(): Promise<any> {
+  if (currentSessionUser) {
+    return currentSessionUser;
   }
+  const anonUser = {
+    uid: `anon-${Date.now()}`,
+    displayName: 'Konuk Sürücü',
+    isAnonymous: true,
+    email: '',
+    photoURL: '',
+    providerId: 'local'
+  };
+  currentSessionUser = anonUser;
+  try {
+    localStorage.setItem(AUTH_KEY, JSON.stringify(anonUser));
+  } catch (e) {
+    console.error(e);
+  }
+  notifyListeners();
+  return anonUser;
 }
 
 // Sign out current user
 export async function logoutUser(): Promise<void> {
+  currentSessionUser = null;
   try {
-    await signOut(auth);
-  } catch (error: any) {
-    console.error("Sign out failed:", error);
-    throw new Error(translateFirebaseError(error));
+    localStorage.removeItem(AUTH_KEY);
+  } catch (e) {
+    console.error(e);
   }
+  notifyListeners();
 }
 
 // Subscribe to auth state changes
-export function subscribeAuthState(callback: (user: User | null) => void) {
-  return onAuthStateChanged(auth, (user) => {
-    callback(user);
-  }, (error) => {
-    console.error("Auth state subscription error:", error);
-  });
+export function subscribeAuthState(callback: (user: any) => void) {
+  listeners.push(callback);
+  callback(currentSessionUser);
+  return () => {
+    const idx = listeners.indexOf(callback);
+    if (idx !== -1) listeners.splice(idx, 1);
+  };
+}
+
+export async function loginWithGoogle(): Promise<any> {
+  throw new Error("Google ile giriş sistemi kaldırılmıştır. Lütfen GitHub veya Kullanıcı Adı ile giriş yapın.");
 }

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { LogIn, User, Sparkles, MessageSquare, AlertCircle, Github } from 'lucide-react';
-import { loginAnonymously, loginWithGoogle } from '../auth';
-import { updateProfile } from 'firebase/auth';
+import { loginAnonymously } from '../auth';
 import { updateUserPresence } from '../firestore';
 
 interface LoginProps {
@@ -113,14 +112,7 @@ export default function Login({ onLoginSuccess, isLoading, setIsLoading }: Login
       
       // Perform anonymous login
       const fUser = await loginAnonymously();
-      
-      // Set display name in auth profile
-      if (fUser && !(fUser as any).uid_mocked) {
-        await updateProfile(fUser, {
-          displayName: nickname.trim(),
-          photoURL: '' // empty so we use default deterministic avatar
-        });
-      }
+      fUser.displayName = nickname.trim();
 
       // Update active user presence
       await updateUserPresence(
@@ -136,32 +128,6 @@ export default function Login({ onLoginSuccess, isLoading, setIsLoading }: Login
       onLoginSuccess(fUser);
     } catch (err: any) {
       setError(err.message || 'Anonim giriş yapılırken bir hata oluştu.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleGoogleLogin = async () => {
-    try {
-      setIsLoading(true);
-      setError('');
-      
-      const fUser = await loginWithGoogle();
-
-      // Update active user presence
-      await updateUserPresence(
-        fUser.uid,
-        fUser.displayName || 'Google Kullanıcısı',
-        fUser.email,
-        fUser.photoURL,
-        false,
-        true,
-        'Yollarda...'
-      );
-
-      onLoginSuccess(fUser);
-    } catch (err: any) {
-      setError(err.message || 'Google ile giriş yapılırken bir hata oluştu.');
     } finally {
       setIsLoading(false);
     }
@@ -266,25 +232,6 @@ export default function Login({ onLoginSuccess, isLoading, setIsLoading }: Login
             <>
               <Github className="w-4 h-4 text-white" />
               <span>GITHUB İLE GİRİŞ YAP</span>
-            </>
-          )}
-        </button>
-
-        {/* Google Authentication Method */}
-        <button
-          type="button"
-          onClick={handleGoogleLogin}
-          disabled={isLoading}
-          className="w-full flex items-center justify-center gap-3 py-2.5 bg-neutral-950 hover:bg-neutral-900 border border-neutral-850 text-neutral-400 hover:text-white text-[11px] font-sans font-semibold tracking-wider uppercase transition-all rounded-sm disabled:opacity-50"
-        >
-          {isLoading ? (
-            <div className="w-4 h-4 border-2 border-neutral-500/30 border-t-neutral-300 rounded-full animate-spin"></div>
-          ) : (
-            <>
-              <svg className="w-3.5 h-3.5 fill-current text-white/80" viewBox="0 0 24 24">
-                <path d="M12.24 10.285V13.4h6.887C18.2 15.614 15.645 18 12.24 18c-3.86 0-7-3.14-7-7s3.14-7 7-7c1.706 0 3.256.61 4.47 1.637l2.43-2.43C17.385 1.54 14.945 0 12.24 0 6.033 0 1 5.033 1 11.24s5.033 11.24 11.24 11.24c5.895 0 10.864-4.223 10.864-11.24 0-.668-.063-1.314-.177-1.955H12.24z" />
-              </svg>
-              <span>Google ile Giriş Yap</span>
             </>
           )}
         </button>

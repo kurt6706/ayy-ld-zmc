@@ -5,8 +5,7 @@
 
 import React, { useState } from 'react';
 import { Mail, Phone, MapPin, Send, MessageCircle, HelpCircle, Check, ShieldAlert } from 'lucide-react';
-import { collection, getDocs, query, where, setDoc, doc } from 'firebase/firestore';
-import { db } from '../firebase';
+import { addDirectMessageDoc } from '../lib/firebaseService';
 
 export default function Contact() {
   const [name, setName] = useState('');
@@ -22,31 +21,12 @@ export default function Contact() {
     setLoading(true);
 
     try {
-      // 1. Find receiver admin id
-      let receiverId = 'admin-1'; // Default seeded admin ID for Kurtuluş Düzlü
-      
-      const usersRef = collection(db, 'users');
-      const q = query(usersRef, where('email', '==', 'kduzlu@gmail.com'));
-      const querySnapshot = await getDocs(q);
-      
-      if (!querySnapshot.empty) {
-        receiverId = querySnapshot.docs[0].id;
-      } else {
-        // Fallback to username kurt
-        const qKurt = query(usersRef, where('username', '==', 'kurt'));
-        const kurtSnap = await getDocs(qKurt);
-        if (!kurtSnap.empty) {
-          receiverId = kurtSnap.docs[0].id;
-        }
-      }
-
-      // 2. Generate a unique senderId for the guest based on email
+      const receiverId = 'admin-1'; // Default admin Kurtuluş Düzlü
       const cleanedEmail = email.trim().toLowerCase();
       const guestSenderId = `guest-${cleanedEmail.replace(/[^a-zA-Z0-9]/g, '-')}`;
-
-      // 3. Save direct message to Firestore
       const msgId = `dm-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
-      await setDoc(doc(db, 'directMessages', msgId), {
+
+      await addDirectMessageDoc({
         id: msgId,
         senderId: guestSenderId,
         senderName: name.trim(),
@@ -65,7 +45,6 @@ export default function Contact() {
       setTimeout(() => setSuccess(false), 5000);
     } catch (err) {
       console.error("Mesaj gönderilemedi:", err);
-      // Fallback to mailto link if Firestore write fails
       const mailtoLink = `mailto:kduzlu@gmail.com?subject=${encodeURIComponent(subject || 'İletişim Formu Mesajı')}&body=${encodeURIComponent(`Gönderen: ${name}\nE-posta: ${email}\n\nMesaj:\n${message}`)}`;
       window.location.href = mailtoLink;
       
